@@ -99,7 +99,14 @@ test('HTTP regression: no CAPTCHA dependency, private MFA, malformed bodies, no 
     const data = JSON.parse(fs.readFileSync(process.env.NIMTERA_DATA_FILE!, 'utf8'));
     assert.equal((await req('/api/auth/mfa/confirm', { totpCode: generateTotpCode(data.sellers[0].totpSecretHex) }, session)).status, 200);
     assert.equal((await req('/api/seller/dashboard', undefined, session)).status, 200);
-    const product = await req('/api/seller/products', { name: 'Test item', priceNimLuna: '100000', priceUsdtMicro: '1000000' }, session);
+    const sharp=(await import('sharp')).default;
+    const photoBytes=await sharp({create:{width:40,height:40,channels:3,background:'orange'}}).png().toBuffer();
+    const photo=await req('/api/seller/product-images',{imageData:'data:image/png;base64,'+photoBytes.toString('base64')},session);
+    assert.equal(photo.status,201);assert.match(photo.body.imageUrl,/^\/api\/product-images\//);
+    const publicPhoto=await fetch(base+photo.body.imageUrl);assert.equal(publicPhoto.status,200);assert.match(publicPhoto.headers.get('content-type')!,/image\/webp/);
+    assert.equal((await req('/api/seller/product-images',{imageData:'data:image/svg+xml;base64,AAAA'},session)).status,400);
+    assert.equal((await req('/api/seller/product-images',{imageData:'invalid'})).status,401);
+    const product = await req('/api/seller/products', { name: 'Test item', imageUrl:photo.body.imageUrl, priceNimLuna: '100000', priceUsdtMicro: '1000000' }, session);
     assert.equal(product.status, 201);
     assert.equal((await req(`/api/seller/products/${product.body.product.id}`, { name: 'Rejected mutation', priceNimLuna: '0', priceUsdtMicro: '0' }, session, 'PUT')).status, 400);
     assert.equal((await req('/api/seller/dashboard', undefined, session)).body.products[0].name, 'Test item');
@@ -131,6 +138,7 @@ test('HTTP regression: no CAPTCHA dependency, private MFA, malformed bodies, no 
     const second = await req('/api/auth/register', { ...account, email: 'other@example.test', storeSlug: 'other' });
     const secondData = JSON.parse(fs.readFileSync(process.env.NIMTERA_DATA_FILE!, 'utf8'));
     await req('/api/auth/mfa/confirm', { totpCode: generateTotpCode(secondData.sellers[1].totpSecretHex) }, second.body.token);
+    assert.equal((await req('/api/seller/products',{name:'Stolen photo',imageUrl:photo.body.imageUrl,priceNimLuna:'100000'},second.body.token)).status,400);
     assert.equal((await req(`/api/seller/products/${product.body.product.id}`, { name: 'Stolen' }, second.body.token, 'PUT')).status, 403);
     assert.equal((await req('/api/seller/network-environment', { environment: 'mainnet' }, session, 'PATCH')).status, 403);
     assert.ok(!JSON.stringify((await req(`/api/public/orders/${created.body.order.publicToken}`)).body).includes('totpSecret'));

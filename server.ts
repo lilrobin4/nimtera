@@ -1,3 +1,4 @@
+import { normalizeProductImage, saveProductImage, readProductImage, validProductImageUrl } from './src/server/productImages.js';
 import { requestState, scopedDatabase, scopedMap } from './src/server/requestState.js';
 import { verifyMessage } from 'ethers';
 import { readPaymentEvidence, paymentIntentMessage } from './src/server/payments.js';
@@ -994,8 +995,23 @@ export async function createApp(options: { apiOnly?: boolean } = {}) {
     res.json({ readyForMainnet: false, checks: { testnetOnly: true }, warning: 'Mainnet disabled. Complete testnet and production persistence review first.' });
   });
 
+  app.post('/api/seller/product-images', requireSellerAuth, asyncRoute(async (req: AuthedRequest, res) => {
+    if (!checkPublicRateLimit('photo:'+req.sellerSession!.storeSlug,15)) { res.status(429).json({ error: 'Too many photo uploads. Please wait a minute.' }); return; }
+    let bytes: Buffer;
+    try { bytes=await normalizeProductImage(req.body.imageData); } catch { res.status(400).json({ error: 'Invalid photo. Use JPG, PNG or WebP and keep the optimized upload below 160 KB.' }); return; }
+    try { const imageUrl=await saveProductImage(req.sellerSession!.storeSlug,bytes); res.status(201).json({imageUrl}); }
+    catch(error) { if(error instanceof Error && error.message.includes('100-photo')) { res.status(409).json({error:error.message}); return; } throw error; }
+  }));
+
+  app.get('/api/product-images/:file', asyncRoute(async (req, res) => {
+    const id=String(req.params.file).match(/^([a-f0-9]{32})\.webp$/)?.[1];
+    const bytes=id?await readProductImage(id):null;
+    if(!bytes) {res.status(404).json({error:'Photo not found.'});return;}
+    res.setHeader('Cache-Control','public, max-age=31536000, immutable');res.type('image/webp').send(bytes);
+  }));
+
   // Seller Product Management (Create / Update)
-  app.post('/api/seller/products', requireSellerAuth, (req: AuthedRequest, res) => {
+  app.post('/api/seller/products', requireSellerAuth, asyncRoute(async (req: AuthedRequest, res) => {
     const storeSlug = req.sellerSession!.storeSlug;
     const { name, description, category, imageUrl, available, priceNimLuna, priceUsdtMicro } =
       req.body as Partial<ProductRecord>;
@@ -1018,6 +1034,7 @@ export async function createApp(options: { apiOnly?: boolean } = {}) {
       return;
     }
 
+    if (imageUrl && !await validProductImageUrl(imageUrl.trim(),storeSlug)) { res.status(400).json({error:'Choose an example photo or upload a photo to your own shop.'});return; }
     const newProd: ProductRecord = {
       id: `prod_${crypto.randomBytes(6).toString('hex')}`,
       storeSlug,
@@ -1038,9 +1055,9 @@ export async function createApp(options: { apiOnly?: boolean } = {}) {
     db.products.push(newProd);
     saveDatabase(db);
     res.status(201).json({ product: newProd });
-  });
+  }));
 
-  app.put('/api/seller/products/:id', requireSellerAuth, (req: AuthedRequest, res) => {
+  app.put('/api/seller/products/:id', requireSellerAuth, asyncRoute(async (req: AuthedRequest, res) => {
     const storeSlug = req.sellerSession!.storeSlug;
     const product = db.products.find((p) => p.id === req.params.id);
     if (!product || product.storeSlug !== storeSlug) {
@@ -1061,6 +1078,7 @@ export async function createApp(options: { apiOnly?: boolean } = {}) {
       draft.category = category;
     }
     if (imageUrl !== undefined && imageUrl.trim()) {
+      if(!await validProductImageUrl(imageUrl.trim(),storeSlug)) { res.status(400).json({error:'Choose an example photo or upload a photo to your own shop.'});return; }
       draft.imageUrl = imageUrl.trim();
     }
     if (available !== undefined) draft.available = Boolean(available);
@@ -1083,7 +1101,7 @@ export async function createApp(options: { apiOnly?: boolean } = {}) {
     Object.assign(originalProduct, draft);
     saveDatabase(db);
     res.json({ product: originalProduct });
-  });
+  }));
 
   app.delete('/api/seller/products/:id', requireSellerAuth, (req: AuthedRequest, res) => {
     const storeSlug = req.sellerSession!.storeSlug;

@@ -52,6 +52,16 @@ export const schemaSql = `CREATE TABLE IF NOT EXISTS nimtera_testnet_state (
 );
 ALTER TABLE nimtera_testnet_state ENABLE ROW LEVEL SECURITY;
 REVOKE ALL ON TABLE nimtera_testnet_state FROM PUBLIC;
+CREATE TABLE IF NOT EXISTS nimtera_product_images (
+  id text PRIMARY KEY CHECK (id ~ '^[a-f0-9]{32}$'),
+  owner_slug text NOT NULL,
+  digest text NOT NULL,
+  content bytea NOT NULL CHECK (octet_length(content) BETWEEN 1 AND 160000),
+  created_at timestamptz NOT NULL DEFAULT now(),
+  UNIQUE(owner_slug,digest)
+);
+ALTER TABLE nimtera_product_images ENABLE ROW LEVEL SECURITY;
+REVOKE ALL ON TABLE nimtera_product_images FROM PUBLIC;
 `;
 export async function prepareDatabase(initial: any): Promise<void> {
   if (!prepared) prepared = (async () => {
@@ -91,6 +101,7 @@ export async function transaction<T>(sqlPool: SqlPool, action: (state: RequestSt
     if (!result.rows?.[0]) throw new Error('Run database initialization first');
     const envelope = result.rows[0].state as StateEnvelope;
     const state = deserialize(envelope);
+    state.sqlClient = client;
     const output = await requestState.run(state, () => action(state));
     // Invalid business requests cannot partially change products/orders. Auth failure counters still persist.
     if (shouldRestoreDatabase(output)) state.database = envelope.database;

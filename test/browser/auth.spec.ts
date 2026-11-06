@@ -1,5 +1,6 @@
 import { test, expect } from '@playwright/test';
 import { createHmac } from 'node:crypto';
+import sharp from 'sharp';
 import { createValidNimiqAddress } from '../../src/lib/domain';
 // This suite uses the REAL backend and PostgreSQL-engine request adapter, not route mocks.
 test.skip(!process.env.PLAYWRIGHT_AUTH_E2E, 'Requires isolated real API fixture; never creates accounts in production.');
@@ -30,6 +31,24 @@ test('email/password/2FA login restores shop on reload, navigation, new tab and 
   await expect(page.getByTestId('seller-header-store-btn')).toContainText('Persistent Restaurant');
   await page.getByRole('button',{name:'Orders',exact:true}).click(); await expect(page).toHaveURL(/\/seller\/orders$/);
   await expect(page.getByTestId('seller-header-store-btn')).toContainText('Persistent Restaurant');
+  await page.goto('/seller/products');
+  await page.getByPlaceholder('Cardamom Cold Brew',{exact:true}).fill('Merchant uploaded product');
+  await expect(page.getByTestId('product-photo-presets').getByRole('button')).toHaveCount(18);
+  await page.getByTestId('product-photo-presets').getByRole('button',{name:'Pizza',exact:true}).click();
+  await expect(page.getByTestId('selected-product-photo')).toHaveAttribute('src','/products/pizza.jpg');
+  const bytes=await sharp({create:{width:400,height:300,channels:3,background:'#f59e0b'}}).png().toBuffer();
+  const uploaded=page.waitForResponse(response=>response.url().endsWith('/api/seller/product-images')&&response.request().method()==='POST');
+  await page.getByTestId('product-photo-upload').setInputFiles({name:'my-product.png',mimeType:'image/png',buffer:bytes});
+  const uploadResponse=await uploaded;expect(uploadResponse.status()).toBe(201);const photo=(await uploadResponse.json()).imageUrl;
+  await expect(page.getByTestId('selected-product-photo')).toHaveAttribute('src',photo);
+  const photoResponse=await context.request.get(photo);expect(photoResponse.status()).toBe(200);expect(photoResponse.headers()['content-type']).toContain('image/webp');
+  await page.getByRole('button',{name:'+ Save item and prices to catalog',exact:true}).click();
+  await expect(page.getByText('Merchant uploaded product',{exact:true})).toBeVisible();
+  await page.reload();await expect(page.locator(`img[src="${photo}"]`).first()).toBeVisible();
+  const publicCatalog=await context.newPage();await publicCatalog.goto('/s/persistent-restaurant');
+  await expect(publicCatalog.getByText('Merchant uploaded product',{exact:true})).toBeVisible();await expect(publicCatalog.locator(`img[src="${photo}"]`).first()).toBeVisible();await publicCatalog.close();
+  await page.getByTestId('product-photo-upload').setInputFiles({name:'unsafe.svg',mimeType:'image/svg+xml',buffer:Buffer.from('<svg/>')});
+  await expect(page.getByRole('alert')).toContainText('Could not upload');
   const cookie=(await context.cookies()).find(c=>c.name==='nimtera_seller_session'); expect(cookie?.httpOnly).toBe(true);expect(cookie?.expires).toBeGreaterThan(Date.now()/1000);
   expect(await page.evaluate(()=>sessionStorage.getItem('nimtera_seller_token'))).toBeNull();
   for (const route of ['products','orders','reports','settings','counter']) {

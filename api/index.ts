@@ -1,3 +1,4 @@
+import { readProductImage } from '../src/server/productImages.js';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { createApp, emptyDatabase } from '../server.js';
 import { getPool, prepareDatabase, serveDurableRequest } from '../src/server/postgres.js';
@@ -9,6 +10,15 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
   const url = new URL(req.url || '/', 'https://nimtera.invalid');
   // Security configuration has no user data and remains visible without a configured DB.
   if (url.pathname === '/api/auth/security-status') return api(req, res);
+  const photoId=url.pathname.match(/^\/api\/product-images\/([a-f0-9]{32})\.webp$/)?.[1];
+  if (photoId && (req.method==='GET' || req.method==='HEAD')) {
+    try {
+      const bytes=await readProductImage(photoId,getPool());
+      if(!bytes) {res.statusCode=404;res.setHeader('Content-Type','application/json');return res.end(JSON.stringify({error:'Photo not found.'}));}
+      res.setHeader('Content-Type','image/webp');res.setHeader('X-Content-Type-Options','nosniff');res.setHeader('Cache-Control','public, max-age=31536000, immutable');res.setHeader('Content-Length',bytes.length);
+      return res.end(req.method==='HEAD'?undefined:bytes);
+    } catch {res.statusCode=503;res.setHeader('Cache-Control','no-store');return res.end();}
+  }
   if (url.pathname === '/api/health') {
     const configured = {
       database: Boolean(process.env.DATABASE_URL || process.env.POSTGRES_URL),

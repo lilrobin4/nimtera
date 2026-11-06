@@ -1,6 +1,7 @@
 import { AsyncLocalStorage } from 'node:async_hooks';
 
 export interface RequestState {
+  sqlClient?: { query: (sql: string, values?: any[]) => Promise<any> };
   database: any;
   sessions: Map<string, any>;
   loginRateLimits: Map<string, any>;

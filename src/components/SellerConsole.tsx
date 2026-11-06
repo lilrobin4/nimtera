@@ -1,3 +1,5 @@
+import { PRODUCT_IMAGE_PRESETS } from '../lib/productImages';
+import { ProductImagePicker } from './ProductImagePicker';
 import { COOKIE_SESSION, legacySellerToken, clearLegacySellerToken, sellerAuthHeaders } from '../lib/sellerSession';
 import { uiText, uiChoice, categoryCopy } from '../lib/uiLocale';
 import { AuthenticatorEnrollment } from './AuthenticatorEnrollment';
@@ -56,32 +58,6 @@ import { OrderStatusBadge } from './ui/OrderStatusBadge';
 
 export type SellerTab = 'counter' | 'orders' | 'products' | 'reports' | 'settings';
 
-const PRODUCT_IMAGE_PRESETS = [
-  {
-    label: 'Iced Latte',
-    url: '/products/product_iced_latte_1793717983788.jpg',
-  },
-  {
-    label: 'Matcha',
-    url: '/products/product_matcha_latte_1793717985445.jpg',
-  },
-  {
-    label: 'Croissant',
-    url: '/products/product_butter_croissant_1793717986872.jpg',
-  },
-  {
-    label: 'Jasmine Tea',
-    url: '/products/product_jasmine_tea_1793717986722.jpg',
-  },
-  {
-    label: 'Sourdough',
-    url: '/products/product_sourdough_loaf_1793717990053.jpg',
-  },
-  {
-    label: 'Ceramic Mug',
-    url: '/products/product_ceramic_mug_1793717988583.jpg',
-  },
-];
 
 interface StoreRecord {
   slug: string;
@@ -205,6 +181,7 @@ export const SellerConsole: React.FC<SellerConsoleProps> = ({
   const [newProdNim, setNewProdNim] = useState('40');
   const [newProdUsdt, setNewProdUsdt] = useState('1.20');
   const [newProdImg, setNewProdImg] = useState(PRODUCT_IMAGE_PRESETS[0].url);
+  const [photoBusy, setPhotoBusy] = useState(false);
   const [prodFeedback, setProdFeedback] = useState<string | null>(null);
 
   // Reports date filter state
@@ -615,6 +592,7 @@ export const SellerConsole: React.FC<SellerConsoleProps> = ({
   };
 
   const handleStartEditProduct = (prod: ProductRecord, openInPos = false) => {
+    if (photoBusy) return;
     setEditingProdId(prod.id);
     setNewProdName(prod.name);
     setNewProdDesc(prod.description || '');
@@ -629,6 +607,7 @@ export const SellerConsole: React.FC<SellerConsoleProps> = ({
   };
 
   const handleResetProductForm = () => {
+    if (photoBusy) return;
     setEditingProdId(null);
     setNewProdName('');
     setNewProdDesc('');
@@ -640,7 +619,7 @@ export const SellerConsole: React.FC<SellerConsoleProps> = ({
 
   const handleCreateProduct = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!sessionToken) return;
+    if (!sessionToken || photoBusy) return;
     setProdFeedback(null);
     const nimLuna = newProdNim.trim() ? parseNimToLuna(newProdNim) : null;
     const usdtMicro = newProdUsdt.trim() ? parseUsdtToMicro(newProdUsdt) : null;
@@ -1553,31 +1532,7 @@ export const SellerConsole: React.FC<SellerConsoleProps> = ({
                         </div>
                       </div>
 
-                      {/* Photo Presets */}
-                      <div>
-                        <span className="block text-xs font-medium text-slate-300 mb-1.5">{' '}{uiText(locale, "Pilih Foto Menu")}{' '}</span>
-                        <div className="flex flex-wrap items-center gap-2">
-                          {PRODUCT_IMAGE_PRESETS.map((preset) => (
-                            <button
-                              key={preset.url}
-                              type="button"
-                              onClick={() => setNewProdImg(preset.url)}
-                              className={`flex items-center gap-1.5 px-2.5 py-1 rounded-xl border text-xs transition-all cursor-pointer ${
-                                newProdImg === preset.url
-                                  ? 'bg-[#14B8A6]/25 border-[#14B8A6] text-[#F8FAFC] font-semibold'
-                                  : 'bg-[#263242] border-slate-500 text-slate-300 hover:text-white'
-                              }`}
-                            >
-                              <img
-                                src={preset.url}
-                                alt={preset.label}
-                                className="w-5 h-5 rounded-md object-cover"
-                              />
-                              <span>{preset.label}</span>
-                            </button>
-                          ))}
-                        </div>
-                      </div>
+                      <ProductImagePicker value={newProdImg} onChange={setNewProdImg} locale={locale} token={sessionToken} onBusyChange={setPhotoBusy} />
 
                       {prodFeedback && (
                         <div
@@ -1598,7 +1553,7 @@ export const SellerConsole: React.FC<SellerConsoleProps> = ({
                         )}
                         <button
                           type="submit"
-                          data-testid="pos-save-menu-btn"
+                          data-testid="pos-save-menu-btn" disabled={photoBusy}
                           className="px-5 py-2.5 rounded-xl bg-[#14B8A6] hover:bg-[#0D9488] text-[#071318] font-semibold text-xs cursor-pointer active:scale-95 transition-transform"
                         >
                           {editingProdId
@@ -2205,31 +2160,7 @@ export const SellerConsole: React.FC<SellerConsoleProps> = ({
                     </div>
                   </div>
 
-                  {/* Photo Preset Selector */}
-                  <div>
-                    <label className="block text-xs text-slate-300 mb-1.5">Foto Menu</label>
-                    <div className="grid grid-cols-3 gap-1.5">
-                      {PRODUCT_IMAGE_PRESETS.map((preset) => (
-                        <button
-                          key={preset.url}
-                          type="button"
-                          onClick={() => setNewProdImg(preset.url)}
-                          className={`flex items-center gap-1.5 p-1.5 rounded-xl border text-[13px] transition-all cursor-pointer ${
-                            newProdImg === preset.url
-                              ? 'bg-[#14B8A6]/25 border-[#14B8A6] text-[#F8FAFC] font-semibold'
-                              : 'bg-[#263242] border-slate-500 text-slate-300'
-                          }`}
-                        >
-                          <img
-                            src={preset.url}
-                            alt={preset.label}
-                            className="w-5 h-5 rounded object-cover shrink-0"
-                          />
-                          <span className="truncate">{preset.label}</span>
-                        </button>
-                      ))}
-                    </div>
-                  </div>
+                  <ProductImagePicker value={newProdImg} onChange={setNewProdImg} locale={locale} token={sessionToken} onBusyChange={setPhotoBusy} />
 
                   {prodFeedback && (
                     <div className="p-2.5 rounded-xl bg-[#0F3D3E] text-[#2DD4BF] text-xs">
@@ -2239,7 +2170,7 @@ export const SellerConsole: React.FC<SellerConsoleProps> = ({
 
                   <button
                     type="submit"
-                    className="w-full py-2.5 px-4 rounded-xl bg-[#14B8A6] hover:bg-[#0D9488] text-[#071318] font-semibold text-xs cursor-pointer active:scale-95 transition-transform"
+                    disabled={photoBusy} className="w-full py-2.5 px-4 rounded-xl bg-[#14B8A6] hover:bg-[#0D9488] text-[#071318] font-semibold text-xs cursor-pointer active:scale-95 transition-transform"
                   >
                     {editingProdId
                       ? uiText(locale, "✓ Simpan Perubahan Menu & Harga")
@@ -2698,7 +2629,7 @@ export const SellerConsole: React.FC<SellerConsoleProps> = ({
                     type="button"
                     data-testid="check-mainnet-readiness-btn"
                     onClick={handleCheckMainnetReadiness}
-                    className="w-full py-2.5 px-4 rounded-xl bg-[#14B8A6] hover:bg-[#0D9488] text-[#071318] font-semibold text-xs cursor-pointer"
+                    disabled={photoBusy} className="w-full py-2.5 px-4 rounded-xl bg-[#14B8A6] hover:bg-[#0D9488] text-[#071318] font-semibold text-xs cursor-pointer"
                   >{' '}{uiText(locale, "Jalankan Pemeriksaan Konfigurasi Mainnet")}{' '}</button>
 
                   {mainnetReadiness && (
