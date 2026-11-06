@@ -4,7 +4,7 @@ const products = [{ id: 'fixture-product', storeSlug: store.slug, name: 'Merchan
 async function mockApi(page: Page) {
   await page.route('**/api/**', async route => {
     const path = new URL(route.request().url()).pathname;
-    const body = path === '/api/seller/dashboard' ? { store, products, orders: [], auditLogs: [] }
+    const body = path.startsWith('/api/public/orders/') ? { order: { id:'fixture-order', publicToken:'fixture-token', orderNumber:'T0001', storeSlug:store.slug, storeName:store.name, environment:'testnet', asset:'NIM', network:'nimiq-testnet', snapshotRecipient:store.nimiqTestnetAddress, amountBase:'100000', amountFormatted:'1', items:[{productId:'fixture-product', name:products[0].name, quantity:1, lineTotalBase:'100000'}], fulfillmentMode:'pickup', tableOrNote:'', paymentStatus:'pending', fulfillmentStatus:'new', createdAt:new Date().toISOString(), expiresAt:new Date(Date.now()+900000).toISOString() } } : path === '/api/seller/dashboard' ? { store, products, orders: [], auditLogs: [] }
       : path.startsWith('/api/public/stores/') ? { store, products }
       : path === '/api/health' ? { ready: true, configured: { database: true, sessionSecret: true }, databaseReachable: true }
       : { captchaRequired: false };
@@ -48,4 +48,45 @@ test('customer category labels follow the language selector, not the seller defa
   await expect(page.getByTestId('menu-column-food')).not.toContainText('Makanan');
   await expect(page.getByText('Merchant item name', { exact: true })).toBeVisible();
   await page.reload(); await expect(page.locator('#storefront-lang-select')).toHaveValue('en');
+});
+
+test('night palette keeps visible text readable across seller and customer views', async ({ page }) => {
+  await mockApi(page);
+  await page.addInitScript(() => { sessionStorage.setItem('nimtera_seller_token', 'ui-fixture-only'); });
+  for (const route of ['/', '/seller/login', '/seller/setup', '/seller/counter', '/seller/products', '/seller/orders', '/seller/reports', '/seller/settings', '/s/language-fixture', '/s/language-fixture/order/fixture-token']) {
+    await page.goto(route);
+    await expect(page.locator('main, header').first()).toBeVisible();
+    if (route.includes('/order/')) await expect(page.getByTestId('checkout-total-amount')).toBeVisible();
+    const failures = await page.evaluate(() => {
+      const canvas = document.createElement('canvas'); canvas.width = canvas.height = 1;
+      const ctx = canvas.getContext('2d')!;
+      const rgba = (color: string) => { ctx.clearRect(0,0,1,1); ctx.fillStyle=color; ctx.fillRect(0,0,1,1); return Array.from(ctx.getImageData(0,0,1,1).data).map((v,i) => i===3?v/255:v); };
+      const lum = (c: number[]) => c.slice(0,3).map(v=>v/255).map(v=>v<=.04045?v/12.92:((v+.055)/1.055)**2.4).reduce((sum,v,i)=>sum+v*[.2126,.7152,.0722][i],0);
+      const errors: string[] = [];
+      for (const el of document.querySelectorAll<HTMLElement>('body *')) {
+        const text=Array.from(el.childNodes).filter(n=>n.nodeType===Node.TEXT_NODE).map(n=>n.textContent).join('').trim();
+        if (!text || !el.getClientRects().length || el.closest('select,button:disabled,[aria-disabled="true"],svg,script,style')) continue;
+        const style=getComputedStyle(el); if (style.visibility==='hidden' || Number(style.opacity)<.5) continue;
+        const chain: HTMLElement[]=[]; for(let p:HTMLElement|null=el;p;p=p.parentElement) chain.unshift(p);
+        let bg=[11,16,28,1];
+        for(const parent of chain) { const c=rgba(getComputedStyle(parent).backgroundColor); bg=[...c.slice(0,3).map((v,i)=>v*c[3]+bg[i]*(1-c[3])),1]; }
+        const c=rgba(style.color);const fg=c.slice(0,3).map((v,i)=>v*c[3]+bg[i]*(1-c[3]));
+        const a=lum(fg),b=lum(bg),ratio=(Math.max(a,b)+.05)/(Math.min(a,b)+.05);
+        const large=parseFloat(style.fontSize)>=24 || (parseFloat(style.fontSize)>=18.66 && Number(style.fontWeight)>=700);
+        if (ratio<(large?3:4.5)) errors.push(`${text.slice(0,65)}: ${ratio.toFixed(2)} (${style.color} on ${bg.slice(0,3)})`);
+      }
+      return errors;
+    });
+    expect(failures, route).toEqual([]);
+  }
+});
+
+test('night theme stays usable at phone width', async ({ page }) => {
+  await mockApi(page); await page.setViewportSize({ width:390, height:844 });
+  for (const route of ['/', '/seller/login', '/seller/setup', '/s/language-fixture', '/s/language-fixture/order/fixture-token']) {
+    await page.goto(route);
+    if (route.includes('/order/')) await expect(page.getByTestId('checkout-total-amount')).toBeVisible();
+    else await expect(page.locator('h1').first()).toBeVisible();
+    expect(await page.evaluate(() => document.documentElement.scrollWidth), route).toBeLessThanOrEqual(390);
+  }
 });

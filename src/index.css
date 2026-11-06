@@ -10,13 +10,13 @@
 
   body {
     font-family: var(--font-sans);
-    background-color: #FAF6F0;
+    background-color: #0B101C;
     background-image:
-      radial-gradient(circle at 14% 18%, rgba(217, 192, 150, 0.25), transparent 45%),
-      radial-gradient(circle at 86% 78%, rgba(20, 184, 166, 0.10), transparent 50%),
-      linear-gradient(135deg, #FAF6F0 0%, #F5EFE6 55%, #EFE6D8 100%);
+      radial-gradient(circle at 14% 18%, rgba(217, 192, 150, 0.04), transparent 45%),
+      radial-gradient(circle at 86% 78%, rgba(20, 184, 166, 0.035), transparent 50%),
+      linear-gradient(135deg, #0B101C 0%, #0E1525 55%, #101B2D 100%);
     background-attachment: fixed;
-    color: #1C1917;
+    color: #F3F4F6;
     overflow-x: hidden;
   }
 
@@ -29,93 +29,12 @@
   }
 }
 
-/* Krem Bersih (Clean Warm Cream) Theme Surfaces & High-Contrast Typography */
-.bg-\[\#0B101C\] {
-  background-color: #FAF6F0 !important;
-  background-image:
-    radial-gradient(circle at 16% 20%, rgba(217, 192, 150, 0.22), transparent 46%),
-    radial-gradient(circle at 84% 80%, rgba(20, 184, 166, 0.09), transparent 50%),
-    linear-gradient(135deg, #FAF6F0 0%, #F5EFE6 54%, #EFE6D8 100%) !important;
-}
-
-.bg-\[\#0B101C\]\/95,
-.bg-\[\#0B101C\]\/90 {
-  background-color: rgba(250, 246, 240, 0.94) !important;
-  backdrop-filter: blur(12px);
-}
-
-.bg-\[\#0E1525\] {
-  background-color: #F4EDE2 !important;
-  background-image: linear-gradient(180deg, #F7F1E7 0%, #EFE6D8 100%) !important;
-}
-
-.bg-\[\#131C2E\],
-.bg-\[\#131C2E\]\/80,
-.bg-\[\#131C2E\]\/60 {
-  background-color: #FFFFFF !important;
-  box-shadow: 0 10px 28px -10px rgba(92, 72, 48, 0.10);
-}
-
-.bg-\[\#182338\],
-.bg-\[\#1B263B\],
-.bg-\[\#1E293B\],
-.bg-\[\#4A0C2B\]\/90,
-.bg-\[\#831843\] {
-  background-color: #F3ECE1 !important;
-}
-
-.bg-\[\#0F3D3E\],
-.bg-\[\#0F3D3E\]\/85,
-.bg-\[\#0F3D3E\]\/80,
-.bg-\[\#0F3D3E\]\/70 {
-  background-color: #E6F7F5 !important;
-}
-
-.text-\[\#F3F4F6\],
-.text-\[\#FFF1F7\] {
-  color: #1C1917 !important;
-}
-
-.text-slate-200,
-.text-slate-300,
-.text-pink-100,
-.text-pink-100\/90 {
-  color: #3F3A34 !important;
-}
-
-.text-slate-400,
-.text-slate-500,
-.text-pink-100\/80,
-.text-pink-200,
-.text-pink-200\/80,
-.text-pink-200\/70 {
-  color: #655E54 !important;
-}
-
-.text-\[\#DFC496\] {
-  color: #8A5A2B !important;
-}
-
-.text-\[\#2DD4BF\] {
-  color: #0F766E !important;
-}
-
-.border-slate-800,
-.border-slate-800\/70,
-.border-slate-800\/80,
-.border-slate-800\/90,
-.border-slate-700,
-.border-slate-700\/80,
-.border-slate-700\/90,
-.border-pink-300\/20,
-.border-pink-300\/25,
-.border-pink-300\/30,
-.border-pink-300\/40 {
-  border-color: #E2D9C8 !important;
-}
-
-.divide-slate-800\/80 > :not([hidden]) ~ :not([hidden]) {
-  border-color: #EAE2D3 !important;
+/* Native controls follow the same dark palette; QR codes keep their white canvas. */
+@layer base {
+  :root { color-scheme: dark; }
+  input::placeholder, textarea::placeholder { color: #94A3B8; opacity: 1; }
+  ::selection { background: #2DD4BF; color: #071318; }
+  :focus-visible { outline: 2px solid #2DD4BF; outline-offset: 3px; }
 }
 
 /* Lively Keyframe Animations */
@@ -151,9 +70,9 @@
   }
 }
 
-@keyframes pulseGlowCream {
+@keyframes pulseGlowNight {
   0%, 100% {
-    box-shadow: 0 0 0 0 rgba(20, 184, 166, 0.35), 0 6px 16px -4px rgba(138, 90, 43, 0.16);
+    box-shadow: 0 0 0 0 rgba(20, 184, 166, 0.35), 0 6px 16px -4px rgba(0, 0, 0, 0.24);
   }
   50% {
     box-shadow: 0 0 0 6px rgba(20, 184, 166, 0), 0 10px 22px -2px rgba(20, 184, 166, 0.28);
@@ -173,7 +92,7 @@
 }
 
 .animate-pulse-glow {
-  animation: pulseGlowCream 2.8s ease-in-out infinite;
+  animation: pulseGlowNight 2.8s ease-in-out infinite;
 }
 
 .menu-card-live {
@@ -182,8 +101,8 @@
 
 .menu-card-live:hover {
   transform: translateY(-5px) scale(1.01);
-  box-shadow: 0 18px 34px -12px rgba(92, 72, 48, 0.18), 0 0 16px -4px rgba(138, 90, 43, 0.15);
-  border-color: #C8B696 !important;
+  box-shadow: 0 18px 34px -12px rgba(0, 0, 0, 0.32), 0 0 16px -4px rgba(217, 192, 150, 0.08);
+  border-color: #DFC496;
 }
 
 @media (prefers-reduced-motion: reduce) {

@@ -187,7 +187,7 @@ export const CustomerStorefront: React.FC<CustomerStorefrontProps> = ({
     <div className="min-h-screen bg-[#0B101C] text-[#F3F4F6] flex flex-col">
       {/* Top Bar Contract: 3 zones separated by gap-8 */}
       <header className="sticky top-0 z-30 bg-[#0B101C]/95 border-b border-slate-800/80 px-4 sm:px-8 py-4">
-        <div className="max-w-[1360px] mx-auto flex items-center justify-between gap-4 sm:gap-8">
+        <div className="max-w-[1360px] mx-auto flex flex-wrap items-center justify-between gap-4 sm:gap-8">
           {/* Zone 1: Brand Title */}
           <BrandLogo
             variant="champagne"
@@ -289,7 +289,7 @@ export const CustomerStorefront: React.FC<CustomerStorefrontProps> = ({
             </span>
           </div>
 
-          <div className="inline-flex items-center gap-1 bg-white/90 border border-stone-300 rounded-lg p-0.5 shrink-0">
+          <div className="inline-flex max-w-full flex-wrap items-center gap-1 bg-white/90 border border-stone-300 rounded-lg p-0.5 shrink-0">
             <button
               type="button"
               data-testid="storefront-switch-testnet"
@@ -343,7 +343,7 @@ export const CustomerStorefront: React.FC<CustomerStorefrontProps> = ({
                   <span className="block">{t.heroHeadlineLine1}</span>
                   <span className="block text-[#DFC496]">{t.heroHeadlineLine2}</span>
                 </h1>
-                <p className="text-pink-100/90 text-base sm:text-lg max-w-xl leading-relaxed">
+                <p className="text-slate-200/90 text-base sm:text-lg max-w-xl leading-relaxed">
                   {t.heroSubtitle}
                 </p>
 
@@ -363,8 +363,8 @@ export const CustomerStorefront: React.FC<CustomerStorefrontProps> = ({
                       onClick={() => onSwitchStore('moonlight-cafe')}
                       className={`px-2.5 py-1 rounded-md font-medium transition-colors whitespace-nowrap cursor-pointer ${
                         store.slug === 'moonlight-cafe'
-                          ? 'bg-[#831843] text-[#DFC496]'
-                          : 'text-pink-200/80 hover:text-white'
+                          ? 'bg-[#182338] text-[#DFC496]'
+                          : 'text-slate-300/80 hover:text-white'
                       }`}
                     >
                       /s/moonlight-cafe
@@ -374,8 +374,8 @@ export const CustomerStorefront: React.FC<CustomerStorefrontProps> = ({
                       onClick={() => onSwitchStore('aurora-roasters')}
                       className={`px-2.5 py-1 rounded-md font-medium transition-colors whitespace-nowrap cursor-pointer ${
                         store.slug === 'aurora-roasters'
-                          ? 'bg-[#831843] text-[#DFC496]'
-                          : 'text-pink-200/80 hover:text-white'
+                          ? 'bg-[#182338] text-[#DFC496]'
+                          : 'text-slate-300/80 hover:text-white'
                       }`}
                     >
                       /s/aurora-roasters
@@ -414,7 +414,7 @@ export const CustomerStorefront: React.FC<CustomerStorefrontProps> = ({
                     className={`px-4 py-2 text-sm font-medium rounded-lg transition-all whitespace-nowrap shrink-0 cursor-pointer active:scale-95 ${
                       selectedCategory === 'all'
                         ? 'bg-[#14B8A6] text-[#071318] font-semibold shadow-sm'
-                        : 'text-slate-600 hover:text-[#1C1917] bg-[#FFFFFF] border border-[#E2D9C8]'
+                        : 'text-slate-300 hover:text-[#F3F4F6] bg-[#131C2E] border border-slate-700'
                     }`}
                   >{' '}{uiText(locale, "Semua Kolom (")}{' '}{products.filter((p) => p.available).length})
                   </button>
@@ -433,7 +433,7 @@ export const CustomerStorefront: React.FC<CustomerStorefrontProps> = ({
                         className={`px-3.5 py-2 text-xs sm:text-sm font-medium rounded-lg transition-all whitespace-nowrap shrink-0 cursor-pointer active:scale-95 ${
                           active
                             ? 'bg-[#14B8A6] text-[#071318] font-semibold shadow-sm'
-                            : 'text-slate-600 hover:text-[#1C1917] bg-[#FFFFFF] border border-[#E2D9C8]'
+                            : 'text-slate-300 hover:text-[#F3F4F6] bg-[#131C2E] border border-slate-700'
                         }`}
                       >
                         {categoryCopy(col.id, locale).title} ({count})
@@ -442,7 +442,7 @@ export const CustomerStorefront: React.FC<CustomerStorefrontProps> = ({
                   })}
                 </div>
 
-                <div className="text-xs text-slate-500">
+                <div className="text-xs text-slate-400">
                   <span>{t.pricesSetByMerchant}</span>
                   <span aria-hidden="true"> · </span>
                   <span>{t.noConversionNotice}</span>
@@ -468,7 +468,7 @@ export const CustomerStorefront: React.FC<CustomerStorefrontProps> = ({
                     <div
                       key={col.id}
                       data-testid={`menu-column-${col.id}`}
-                      className="bg-[#FFFFFF] border border-[#E2D9C8] rounded-3xl p-4 sm:p-5 space-y-4 shadow-sm"
+                      className="bg-[#131C2E] border border-slate-700 rounded-3xl p-4 sm:p-5 space-y-4 shadow-sm"
                     >
                       {/* Column Header */}
                       <div className="flex items-center justify-between gap-2 border-b border-[#EAE2D3] pb-3">
@@ -478,17 +478,17 @@ export const CustomerStorefront: React.FC<CustomerStorefrontProps> = ({
                               className={`px-2.5 py-0.5 rounded-full text-xs font-bold border ${col.accentClass}`}
                             >{' '}{uiText(locale, "Kolom")}{' '}{categoryCopy(col.id, locale).title}
                             </span>
-                            <span className="text-xs text-slate-500 font-medium tabular-nums">
+                            <span className="text-xs text-slate-400 font-medium tabular-nums">
                               {colProducts.length} menu
                             </span>
                           </div>
-                          <p className="text-xs text-slate-500 mt-1">{categoryCopy(col.id, locale).subtitle}</p>
+                          <p className="text-xs text-slate-400 mt-1">{categoryCopy(col.id, locale).subtitle}</p>
                         </div>
                       </div>
 
                       {/* Items inside this Category Column */}
                       {colProducts.length === 0 ? (
-                        <div className="p-6 text-center text-xs text-slate-500">{' '}{uiText(locale, "Belum ada menu di kolom")}{' '}{categoryCopy(col.id, locale).title}.
+                        <div className="p-6 text-center text-xs text-slate-400">{' '}{uiText(locale, "Belum ada menu di kolom")}{' '}{categoryCopy(col.id, locale).title}.
                         </div>
                       ) : (
                         <div
@@ -525,7 +525,7 @@ export const CustomerStorefront: React.FC<CustomerStorefrontProps> = ({
                               <article
                                 key={product.id}
                                 style={{ animationDelay: `${idx * 45}ms` }}
-                                className="group menu-card-live animate-card-in bg-[#FAF6F0] border border-[#E2D9C8] rounded-2xl p-3 flex items-center justify-between gap-3.5"
+                                className="group menu-card-live animate-card-in bg-[#182338] border border-slate-700 rounded-2xl p-3 flex items-center justify-between gap-3.5"
                               >
                                 <div className="flex items-center gap-3.5 min-w-0">
                                   <div className="relative w-20 h-20 rounded-xl bg-[#EFE6D8] overflow-hidden shrink-0">
@@ -544,7 +544,7 @@ export const CustomerStorefront: React.FC<CustomerStorefrontProps> = ({
                                       />
                                     ) : (
                                       <div className="w-full h-full flex items-center justify-center p-2 text-center">
-                                        <span className="font-display text-xs text-[#8A5A2B]">
+                                        <span className="font-display text-xs text-[#DFC496]">
                                           {product.name}
                                         </span>
                                       </div>
@@ -552,25 +552,25 @@ export const CustomerStorefront: React.FC<CustomerStorefrontProps> = ({
                                   </div>
 
                                   <div className="min-w-0 space-y-1">
-                                    <div className="flex items-center gap-1.5 text-[11px] text-slate-500 uppercase tracking-wider">
+                                    <div className="flex items-center gap-1.5 text-[11px] text-slate-400 uppercase tracking-wider">
                                       <span>{categoryCopy(col.id, locale).title}</span>
                                       {inCart > 0 && (
                                         <>
                                           <span aria-hidden="true">·</span>
-                                          <span className="text-[#0F766E] font-bold">
+                                          <span className="text-[#2DD4BF] font-bold">
                                             {inCart}{' '}{uiText(locale, "di pesanan")}{' '}</span>
                                         </>
                                       )}
                                     </div>
-                                    <h2 className="text-sm sm:text-base font-semibold text-[#1C1917] truncate">
+                                    <h2 className="text-sm sm:text-base font-semibold text-[#F3F4F6] truncate">
                                       {product.name}
                                     </h2>
-                                    <p className="text-xs text-slate-500 line-clamp-1">
+                                    <p className="text-xs text-slate-400 line-clamp-1">
                                       {product.description}
                                     </p>
                                     <div className="flex items-baseline gap-2 tabular-nums pt-0.5">
                                       {activeAssetPrice ? (
-                                        <span className="text-sm font-bold text-[#8A5A2B]">
+                                        <span className="text-sm font-bold text-[#DFC496]">
                                           {activeAssetPrice}
                                         </span>
                                       ) : (
@@ -579,7 +579,7 @@ export const CustomerStorefront: React.FC<CustomerStorefrontProps> = ({
                                         </span>
                                       )}
                                       {secondaryAssetPrice && (
-                                        <span className="text-xs text-slate-500">
+                                        <span className="text-xs text-slate-400">
                                           · {secondaryAssetPrice}
                                         </span>
                                       )}
@@ -756,7 +756,7 @@ export const CustomerStorefront: React.FC<CustomerStorefrontProps> = ({
                   onChange={(e) => setTableOrNote(e.target.value)}
                   placeholder={t.orderNotePlaceholder}
                   maxLength={120}
-                  className="w-full bg-[#0B101C] border border-slate-800 rounded-xl px-3.5 py-2 text-xs text-[#F3F4F6] placeholder:text-slate-500 focus-visible:outline-2 focus-visible:outline-[#14B8A6]"
+                  className="w-full bg-[#0B101C] border border-slate-800 rounded-xl px-3.5 py-2 text-xs text-[#F3F4F6] placeholder:text-slate-400 focus-visible:outline-2 focus-visible:outline-[#14B8A6]"
                 />
               </div>
 

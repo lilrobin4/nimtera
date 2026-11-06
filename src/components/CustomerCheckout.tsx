@@ -393,7 +393,7 @@ export const CustomerCheckout: React.FC<CustomerCheckoutProps> = ({
                 </div>
                 <div className="text-[11px] text-slate-400">
                   merchant · {order.fulfillmentMode.replace('_', '-')} ·{' '}
-                  <strong className={isTestnetOrder ? 'text-amber-700' : 'text-emerald-700'}>
+                  <strong className={isTestnetOrder ? 'text-amber-300' : 'text-emerald-300'}>
                     {isTestnetOrder ? 'TESTNET' : 'MAINNET'}
                   </strong>
                 </div>
@@ -404,7 +404,7 @@ export const CustomerCheckout: React.FC<CustomerCheckoutProps> = ({
           </div>
 
           {/* Slate-Blue Checkout Header Banner */}
-          <div className="bg-[#7C9CB5] text-[#0B101C] rounded-2xl py-2.5 px-4 text-center">
+          <div className="bg-[#223C51] text-[#F3F4F6] rounded-2xl py-2.5 px-4 text-center">
             <h1 className="text-lg font-bold tracking-tight text-[#F8FAFC]">
               {t.checkoutTitle} {isTestnetOrder ? '(TESTNET)' : '(MAINNET)'}
             </h1>
@@ -689,16 +689,16 @@ export const CustomerCheckout: React.FC<CustomerCheckoutProps> = ({
               data-testid="nimiq-host-capability-report"
               className="p-3 rounded-xl bg-[#11192A] border border-slate-800 text-[11px] space-y-1.5"
             >
-              <div className="flex items-center justify-between font-semibold text-[#1C1917]">
+              <div className="flex items-center justify-between font-semibold text-[#F3F4F6]">
                 <span className="inline-flex items-center gap-1.5">
                   <ShieldAlert className="w-3.5 h-3.5 text-amber-700 shrink-0" />
                   <span>Diagnostik Host Nimiq Pay & Ketersediaan Testnet</span>
                 </span>
-                <span className="font-mono text-[10px] px-2 py-0.5 rounded bg-[#FAF6F0] border border-[#E2D9C8]">
+                <span className="font-mono text-[10px] px-2 py-0.5 rounded bg-[#182338] border border-slate-700">
                   EVM Chain: {detectedEvmChainId ?? uiText(locale, "Tidak terdeteksi")}
                 </span>
               </div>
-              <p className="text-slate-500 leading-relaxed">
+              <p className="text-slate-400 leading-relaxed">
                 {capabilities.hostLimitationSummary}
               </p>
             </div>
@@ -737,7 +737,7 @@ export const CustomerCheckout: React.FC<CustomerCheckoutProps> = ({
           <div className="text-center text-[11px] text-slate-400 space-y-0.5 leading-relaxed">
             <p>{t.directNoEscrowNotice}</p>
             <p>{t.noConversionNotice}</p>
-            <p className="text-slate-500">
+            <p className="text-slate-400">
               Standard network fees apply in your wallet. Expires:{' '}
               {new Date(order.expiresAt).toLocaleTimeString([], {
                 hour: '2-digit',
@@ -748,7 +748,7 @@ export const CustomerCheckout: React.FC<CustomerCheckoutProps> = ({
         </div>
       </main>
 
-      <footer className="relative z-10 text-center text-xs text-slate-500 pt-4">
+      <footer className="relative z-10 text-center text-xs text-slate-400 pt-4">
         NimTera — {t.independentNotice}
       </footer>
     </div>
