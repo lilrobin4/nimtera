@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {addressPaymentQr,checkoutTransport} from '../src/lib/checkoutTransport';
+import {addressQrAvailable,addressPaymentQr,checkoutTransport} from '../src/lib/checkoutTransport';
 import {CHECKOUT_TRANSPORT_COPY} from '../src/lib/checkoutTransportCopy';
 test('optional Mini App link preserves the exact invoice; it is no longer the payment QR',()=>{
  const checkout='https://nimtera.store/s/shop/order/unique-token?net=nimiq-testnet&env=testnet',result=checkoutTransport(checkout);
@@ -17,4 +17,10 @@ test('all six checkout languages explain wallet scanning and seller review',()=>
 
 test('payment QR matches the user-provided wallet Receive QR, without overwriting any other seller recipient',()=>{
  const user='NQ98 4VFR DPG0 8TQ6 88QJ 3RVX U95A NLG4 RKK4';assert.equal(addressPaymentQr(user),user);assert.throws(()=>addressPaymentQr('https://nimtera.store'));assert.throws(()=>addressPaymentQr('NQ00 BAD'));
+});
+
+test('expired, confirmed, review, failed and already-submitted invoices do not expose a new payment QR',()=>{
+ const now=Date.now(),o={paymentStatus:'unpaid',expiresAt:new Date(now+30000).toISOString()};assert.equal(addressQrAvailable(o,now),true);
+ for(const status of ['confirmed','failed','needs_review'])assert.equal(addressQrAvailable({...o,paymentStatus:status},now),false);
+ assert.equal(addressQrAvailable({...o,expiresAt:new Date(now-1).toISOString()},now),false);assert.equal(addressQrAvailable({...o,expiresAt:'invalid'},now),false);assert.equal(addressQrAvailable({...o,txHash:'d'.repeat(64)},now),false);
 });

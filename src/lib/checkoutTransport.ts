@@ -15,3 +15,7 @@ export function checkoutTransport(checkoutUrl:string) {
 export function addressPaymentQr(recipient:string):string {
  const checked=validateNimiqAddress(recipient);if(!checked.valid)throw new Error('Invalid invoice receiving address');return checked.normalized;
 }
+
+export function addressQrAvailable(order:{expiresAt:string;paymentStatus:string;txHash?:string},now=Date.now()):boolean {
+ return Number.isFinite(Date.parse(order.expiresAt))&&Date.parse(order.expiresAt)>now&&!['confirmed','failed','needs_review'].includes(order.paymentStatus)&&!order.txHash;
+}

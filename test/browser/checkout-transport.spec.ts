@@ -32,3 +32,9 @@ test('cashier address receipt UI requires explicit order match and never display
  await page.route('**/api/seller/orders/review-fixture/address-payment',async route=>{calls++;const body=route.request().postDataJSON();expect(body.acknowledgeOrderMatch).toBe(true);expect(body.txHash).toBe('d'.repeat(64));if(!accept){await route.fulfill({status:409,json:{error:'Receipt is not confirmed yet'}});return;}order.paymentStatus='confirmed';await route.fulfill({json:{ok:true,order}});});
  await page.goto('/seller/orders');const panel=page.getByTestId('address-review-review-fixture');await panel.locator('summary').click();const submit=panel.getByRole('button');await expect(submit).toBeDisabled();await panel.getByRole('textbox').fill('d'.repeat(64));await panel.getByRole('checkbox').check();await submit.click();await expect(panel.getByRole('alert')).toHaveText('Receipt is not confirmed yet');expect(order.paymentStatus).toBe('needs_review');accept=true;await submit.click();await expect(panel).toHaveCount(0);expect(calls).toBe(2);
 });
+
+test('expired invoices hide the receiving QR and disable new native payment requests',async({page})=>{
+ await mockApi(page);await page.goto('/s/language-fixture/order/fixture-token');await expect(page.getByTestId('checkout-address-qr')).toBeVisible();
+ const data=await page.evaluate(async()=>await (await fetch('/api/public/orders/fixture-token')).json());data.order.expiresAt=new Date(Date.now()-1000).toISOString();
+ await page.route('**/api/public/orders/**',route=>route.fulfill({json:data}));await page.reload();await expect(page.getByTestId('address-qr-inactive')).toBeVisible();await expect(page.getByTestId('checkout-address-qr')).toHaveCount(0);await expect(page.getByTestId('pay-in-wallet-btn')).toBeDisabled();
+});

@@ -59,7 +59,7 @@ Use `.env.example` for configuration. Never commit credentials or local data. Th
 
 ## Verification and beta limitations
 
-Latest application validation: **52 unit/security/SQL/theme/wallet/checkout tests**, TypeScript/build/API smoke, and **20 local browser tests** passed (wallet approval is simulated with real Ed25519 proofs, not a physical device). Real local API tests cover registration without 2FA, later optional activation, durable sessions, products, logos, tenant isolation and preservation of retired-payment SQL history. Day/Night tests check saved preferences, cross-tab synchronization, all six theme labels, text contrast and phone-width layouts. Production frontend checks passed with fixture merchant APIs; they are not real production-account or physical payment tests.
+Latest application validation: **53 unit/security/SQL/theme/wallet/checkout tests**, TypeScript/build/API smoke, and **21 local browser tests** passed (wallet approval is simulated with real Ed25519 proofs, not a physical device). Real local API tests cover registration without 2FA, later optional activation, durable sessions, products, logos, tenant isolation and preservation of retired-payment SQL history. Day/Night tests check saved preferences, cross-tab synchronization, all six theme labels, text contrast and phone-width layouts. Production frontend checks passed with fixture merchant APIs; they are not real production-account or physical payment tests.
 
 ```sh
 npm run lint

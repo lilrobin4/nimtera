@@ -1,4 +1,4 @@
-import {addressPaymentQr,checkoutTransport} from '../lib/checkoutTransport';
+import {addressQrAvailable,addressPaymentQr,checkoutTransport} from '../lib/checkoutTransport';
 import {CHECKOUT_TRANSPORT_COPY} from '../lib/checkoutTransportCopy';
 import { uiText, uiChoice, categoryCopy } from '../lib/uiLocale';
 import React, { useEffect, useState } from 'react';
@@ -90,6 +90,7 @@ export const CustomerCheckout: React.FC<CustomerCheckoutProps> = ({
   // Wallet-scannable receiving-address QR. Amount entry and seller receipt review remain explicit.
   useEffect(() => {
     if (!order || !isActiveNimOrder(order)) return;
+    if(!addressQrAvailable(order)){setQrDataUrl('');return;}
     const payload=addressPaymentQr(order.snapshotRecipient);
 
     QRCode.toDataURL(payload, {
@@ -115,7 +116,7 @@ export const CustomerCheckout: React.FC<CustomerCheckoutProps> = ({
 
   const handlePayInNimiqPay = async () => {
     if (!order) return;
-    if (!isActiveNimOrder(order) || ['confirmed','failed'].includes(order.paymentStatus) || Date.now() > Date.parse(order.expiresAt)) { setWalletNotice('Invoice cannot request a new payment. Mainnet is disabled during the testnet beta.'); return; }
+    if (!isActiveNimOrder(order) || !addressQrAvailable(order)) { setWalletNotice('Invoice cannot request a new payment. Mainnet is disabled during the testnet beta.'); return; }
     if (verifying) return;
     setWalletNotice(null);
 
@@ -472,7 +473,7 @@ export const CustomerCheckout: React.FC<CustomerCheckoutProps> = ({
               </div>
 
               <div className="bg-white p-2.5 rounded-2xl shadow-md">
-                {qrDataUrl ? (
+                {!addressQrAvailable(order)?<p data-testid="address-qr-inactive" className="max-w-xs text-sm text-slate-900 p-3">{transportText.inactive}</p>:qrDataUrl ? (
                   <img
                     src={qrDataUrl}
                     data-testid="checkout-address-qr"
@@ -517,7 +518,7 @@ export const CustomerCheckout: React.FC<CustomerCheckoutProps> = ({
                 type="button"
                 data-testid="pay-in-wallet-btn"
                 onClick={handlePayInNimiqPay}
-                disabled={order.paymentStatus === 'confirmed'}
+                disabled={!addressQrAvailable(order)}
                 className="w-full py-3 px-5 rounded-xl bg-[#14B8A6] hover:bg-[#0D9488] disabled:opacity-70 text-[#071318] font-semibold text-sm transition-colors cursor-pointer shadow"
               >
                 {order.paymentStatus === 'confirmed'
