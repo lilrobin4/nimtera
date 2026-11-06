@@ -1,0 +1,6 @@
+{
+  "name": "NimTera",
+  "description": "Your shop. Every payment. Cashier and order management web app for in-person and online merchants with native Nimiq Pay checkout for NIM and Polygon USDT.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
