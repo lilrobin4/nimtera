@@ -1,21 +1,24 @@
 /**
  * Core pure domain logic for NimTera:
- * - Integer / BigInt monetary arithmetic (Luna for NIM, micro-USDT for Polygon USDT)
- * - Nimiq MOD-97-10 address checksum validation & Polygon address validation
+ * - Integer / BigInt NIM arithmetic in Luna
+ * - Nimiq MOD-97-10 address checksum validation
  * - Cart compatibility & server-authoritative order calculation
- * - Payment URI / ERC-20 calldata encoding
+ * - Order-bound Nimiq payment URIs
  * - On-chain payment verification & reconciliation state machine
  * - Seller password policy (>= 15 chars + breached check)
  * - Audio announcement deduplication
  */
 
-export type PaymentAsset = 'NIM' | 'USDT';
+export type PaymentAsset = 'NIM';
+/** Read-only compatibility for existing orders. Never accepted for new payments. */
+export type HistoricalAsset = PaymentAsset | 'USDT';
 export type NetworkEnvironment = 'testnet' | 'mainnet';
-export type NetworkId =
-  | 'nimiq-testnet'
-  | 'nimiq-mainnet'
-  | 'polygon-amoy'
-  | 'polygon-mainnet';
+export type NetworkId = 'nimiq-testnet' | 'nimiq-mainnet';
+/** Archived identifiers only: no RPC, wallet or payment implementation remains. */
+export type HistoricalNetwork = NetworkId | 'polygon-amoy' | 'polygon-mainnet';
+export function isActiveNimOrder(order: {asset: unknown; network: unknown; environment?: unknown}): boolean {
+  return order.asset === 'NIM' && order.network === 'nimiq-testnet' && order.environment === 'testnet';
+}
 export type FulfillmentMode = 'pickup' | 'delivery' | 'dine_in';
 
 export type PaymentStatus =
@@ -35,18 +38,11 @@ export type FulfillmentStatus =
 
 export const DEFAULT_NETWORK_ENV: NetworkEnvironment = 'testnet';
 export const LUNA_PER_NIM = 100_000n; // 1 NIM = 10^5 Luna (5 decimals)
-export const MICRO_PER_USDT = 1_000_000n; // 1 USDT / TEST TOKEN = 10^6 micro units (6 decimals)
-export const POLYGON_MAINNET_CHAIN_ID = 137;
-export const POLYGON_AMOY_CHAIN_ID = 80002;
-export const POLYGON_USDT_CONTRACT = '0xc2132D05D31c914a87C6611C10748AEb04B58e8F';
-export const ERC20_TRANSFER_TOPIC =
-  '0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef';
-
 export interface NetworkConfiguration {
   id: NetworkId;
   environment: NetworkEnvironment;
   asset: PaymentAsset;
-  /** Display label for the asset — strictly 'TEST TOKEN' on Polygon Amoy and 'NIM (TESTNET)' on Nimiq Testnet */
+  /** Display label for the asset — 'NIM (TESTNET)' on Nimiq Testnet */
   assetDisplayLabel: string;
   networkDisplayName: string;
   chainId: number | null;
@@ -90,36 +86,7 @@ export const NETWORK_CONFIGS: Record<NetworkId, NetworkConfiguration> = {
     tokenContract: null,
     isRealFunds: true,
   },
-  'polygon-amoy': {
-    id: 'polygon-amoy',
-    environment: 'testnet',
-    asset: 'USDT',
-    assetDisplayLabel: 'TEST TOKEN',
-    networkDisplayName: 'Polygon Amoy Testnet (Chain ID 80002)',
-    chainId: POLYGON_AMOY_CHAIN_ID,
-    chainIdHex: '0x13882',
-    nimiqNetworkName: null,
-    nimiqNetworkIdNumber: null,
-    defaultRpcUrl: '',
-    explorerBaseUrl: 'https://amoy.polygonscan.com',
-    tokenContract: null, // Must NEVER use Mainnet USDT contract; configured per store/env after explicit approval
-    isRealFunds: false,
-  },
-  'polygon-mainnet': {
-    id: 'polygon-mainnet',
-    environment: 'mainnet',
-    asset: 'USDT',
-    assetDisplayLabel: 'USDT',
-    networkDisplayName: 'Polygon Mainnet (Chain ID 137)',
-    chainId: POLYGON_MAINNET_CHAIN_ID,
-    chainIdHex: '0x89',
-    nimiqNetworkName: null,
-    nimiqNetworkIdNumber: null,
-    defaultRpcUrl: 'https://polygon-rpc.com',
-    explorerBaseUrl: 'https://polygonscan.com',
-    tokenContract: POLYGON_USDT_CONTRACT,
-    isRealFunds: true,
-  },
+
 };
 
 export function resolveNetworkId(
@@ -127,13 +94,15 @@ export function resolveNetworkId(
   environment: NetworkEnvironment = 'mainnet'
 ): NetworkId {
   if (environment === 'testnet') {
-    return asset === 'NIM' ? 'nimiq-testnet' : 'polygon-amoy';
+    if (asset !== 'NIM') throw new Error('Only NIM payments are supported.');
+    return 'nimiq-testnet';
   }
-  return asset === 'NIM' ? 'nimiq-mainnet' : 'polygon-mainnet';
+  if (asset !== 'NIM') throw new Error('Only NIM payments are supported.');
+  return 'nimiq-mainnet';
 }
 
 export function getNetworkEnvironment(network: NetworkId): NetworkEnvironment {
-  return network === 'nimiq-testnet' || network === 'polygon-amoy' ? 'testnet' : 'mainnet';
+  return network === 'nimiq-testnet' ? 'testnet' : 'mainnet';
 }
 
 export function getAssetLabelForEnvironment(
@@ -141,37 +110,9 @@ export function getAssetLabelForEnvironment(
   environment: NetworkEnvironment = 'mainnet'
 ): string {
   if (environment === 'testnet') {
-    return asset === 'NIM' ? 'NIM (TESTNET)' : 'TEST TOKEN';
+    return 'NIM (TESTNET)';
   }
   return asset;
-}
-
-/**
- * Validates a Polygon Amoy Test Token contract address.
- * Strictly forbids using the Polygon Mainnet USDT contract address (0xc2132D05D31c914a87C6611C10748AEb04B58e8F) on Amoy.
- */
-export function validateAmoyTestTokenContract(contractAddress: string): {
-  valid: boolean;
-  normalized: string | null;
-  reason?: string;
-} {
-  const clean = contractAddress.trim();
-  if (!clean) {
-    return { valid: true, normalized: null };
-  }
-  const addrCheck = validatePolygonAddress(clean);
-  if (!addrCheck.valid) {
-    return { valid: false, normalized: null, reason: addrCheck.reason };
-  }
-  if (addrCheck.normalized.toLowerCase() === POLYGON_USDT_CONTRACT.toLowerCase()) {
-    return {
-      valid: false,
-      normalized: null,
-      reason:
-        'DILARANG menggunakan alamat kontrak USDT Mainnet (0xc2132D...) sebagai kontrak TEST TOKEN di Polygon Amoy Testnet (Chain ID 80002).',
-    };
-  }
-  return { valid: true, normalized: addrCheck.normalized };
 }
 
 export type ProductCategory = 'food' | 'drinks' | 'dessert' | 'fruit' | 'bakery' | 'goods';
@@ -237,8 +178,8 @@ export interface ProductRecord {
   available: boolean;
   /** Price in Luna (1 NIM = 100,000 Luna), null if NIM not supported for this product */
   priceNimLuna: string | null;
-  /** Price in micro-USDT (1 USDT = 1,000,000 micro-USDT), null if USDT not supported */
-  priceUsdtMicro: string | null;
+    /** @deprecated Retained unchanged for stored historical records; never priced or edited. */
+  priceUsdtMicro?: string | null;
 }
 
 export interface CartItemInput {
@@ -263,17 +204,17 @@ export interface OrderSnapshot {
   storeName: string;
   /** Strictly locked environment at order creation time ('testnet' | 'mainnet') */
   environment?: NetworkEnvironment;
-  asset: PaymentAsset;
-  /** Display label locked at creation time ('NIM (TESTNET)', 'TEST TOKEN', 'NIM', or 'USDT') */
+  asset: HistoricalAsset;
+  /** Original display label preserved for historical receipts. */
   assetLabel?: string;
-  network: NetworkId;
-  /** Locked Chain ID at order creation time (80002 for Amoy, 137 for Polygon Mainnet, null for Nimiq) */
+  network: HistoricalNetwork;
+  /** Legacy receipt metadata, read-only. */
   snapshotChainId?: number | null;
-  /** Locked token contract address at order creation time (for Polygon Amoy TEST TOKEN or Polygon Mainnet USDT) */
+  /** Legacy receipt metadata, read-only. */
   snapshotTokenContract?: string | null;
   /** Snapshot of merchant wallet at order creation time (never mutated when merchant updates wallet) */
   snapshotRecipient: string;
-  /** Total in smallest integer unit (Luna or micro-USDT) stored as decimal string for JSON safety */
+  /** Total in smallest integer unit (Luna (or original units for archived records)) stored as decimal string for JSON safety */
   amountBase: string;
   amountFormatted: string;
   items: OrderItemSnapshot[];
@@ -322,10 +263,6 @@ export function parseNimToLuna(nimInput: string): bigint | null {
   return parseDecimalToBaseUnits(nimInput, 5);
 }
 
-export function parseUsdtToMicro(usdtInput: string): bigint | null {
-  return parseDecimalToBaseUnits(usdtInput, 6);
-}
-
 export function formatBaseUnitsToDecimal(
   baseUnits: bigint | string,
   decimals: number,
@@ -348,19 +285,14 @@ export function formatLunaToNim(luna: bigint | string): string {
   return formatBaseUnitsToDecimal(luna, 5, 0);
 }
 
-export function formatMicroToUsdt(micro: bigint | string): string {
-  return formatBaseUnitsToDecimal(micro, 6, 2);
-}
-
 export function formatAssetAmount(
   baseUnits: bigint | string,
   asset: PaymentAsset,
   environment: NetworkEnvironment = 'mainnet'
 ): string {
   const label = getAssetLabelForEnvironment(asset, environment);
-  return asset === 'NIM'
-    ? `${formatLunaToNim(baseUnits)} ${label}`
-    : `${formatMicroToUsdt(baseUnits)} ${label}`;
+  if (asset !== 'NIM') throw new Error('Only NIM payments are supported.');
+  return `${formatLunaToNim(baseUnits)} ${label}`;
 }
 
 /**
@@ -433,27 +365,6 @@ export function validateNimiqAddress(address: string): {
 }
 
 /**
- * Validates Polygon EVM address (0x + 40 hex chars).
- */
-export function validatePolygonAddress(address: string): {
-  valid: boolean;
-  normalized: string;
-  reason?: string;
-} {
-  const clean = address.trim();
-  if (!clean.startsWith('0x')) {
-    return { valid: false, normalized: '', reason: 'Must start with 0x' };
-  }
-  if (!/^0x[0-9a-fA-F]{40}$/.test(clean)) {
-    return { valid: false, normalized: '', reason: 'Must be a 42-character hexadecimal address' };
-  }
-  if (/^0x0{40}$/.test(clean)) {
-    return { valid: false, normalized: '', reason: 'Zero address is not allowed' };
-  }
-  return { valid: true, normalized: clean };
-}
-
-/**
  * Seller password security policy:
  * - Minimum 15 characters
  * - Rejects common/breached passphrases and trivial repetitions
@@ -504,7 +415,7 @@ export function validateSellerPassword(password: string): {
 
 /**
  * Server-authoritative cart calculation.
- * Never mixes NIM and USDT. Reports any products in the cart that lack a price in the chosen asset.
+ * Reports products without a valid NIM price.
  */
 export interface CartCalculationResult {
   compatible: boolean;
@@ -546,7 +457,7 @@ export function calculateCartTotals(
     }
 
     const rawUnitPrice =
-      selectedAsset === 'NIM' ? product.priceNimLuna : product.priceUsdtMicro;
+      product.priceNimLuna;
 
     if (!rawUnitPrice || BigInt(rawUnitPrice) <= 0n) {
       incompatibleProducts.push({
@@ -620,59 +531,18 @@ export function buildNimiqPaymentDetails(params: {
 }
 
 /**
- * Encodes ERC-20 `transfer(address,uint256)` calldata and EIP-681 payment request URI
- * for Polygon Mainnet USDT (Chain ID 137) or Polygon Amoy TEST TOKEN (Chain ID 80002).
- * Never uses the Mainnet USDT contract on Amoy.
- */
-export function buildPolygonUsdtTransferDetails(params: {
-  recipient: string;
-  amountMicro: bigint | string;
-  network?: 'polygon-amoy' | 'polygon-mainnet';
-  tokenContractOverride?: string | null;
-}) {
-  const network = params.network || 'polygon-mainnet';
-  const isAmoy = network === 'polygon-amoy';
-  const chainId = isAmoy ? POLYGON_AMOY_CHAIN_ID : POLYGON_MAINNET_CHAIN_ID;
-  const chainIdHex = isAmoy ? '0x13882' : '0x89';
-  const tokenContract = isAmoy
-    ? params.tokenContractOverride || null
-    : POLYGON_USDT_CONTRACT;
-
-  const cleanRecipient = params.recipient.trim().toLowerCase().replace(/^0x/, '');
-  const amountBig = typeof params.amountMicro === 'string' ? BigInt(params.amountMicro) : params.amountMicro;
-  const amountHex = amountBig.toString(16).padStart(64, '0');
-  const addressHex = cleanRecipient.padStart(64, '0');
-  const data = `0xa9059cbb${addressHex}${amountHex}`;
-  const eip681Uri = tokenContract
-    ? `ethereum:${tokenContract}@${chainId}/transfer?address=${params.recipient}&uint256=${amountBig.toString()}`
-    : `ethereum:${params.recipient}@${chainId}?value=0`;
-
-  return {
-    network,
-    chainId,
-    chainIdHex,
-    tokenContract,
-    assetLabel: isAmoy ? 'TEST TOKEN' : 'USDT',
-    decimals: 6,
-    data,
-    eip681Uri,
-    amountMicro: amountBig.toString(),
-  };
-}
-
-/**
  * On-chain payment verification & reconciliation input and output types.
  */
 export interface OnChainTxEvidence {
   txHash: string;
-  network: NetworkId;
+  network: HistoricalNetwork;
   /** 'pending' if still in mempool / unconfirmed, 'confirmed' if mined/finalized, 'failed' if reverted, 'rpc_timeout' if upstream timed out */
   executionStatus: 'pending' | 'confirmed' | 'failed' | 'rpc_timeout' | 'unverified';
   invalidReason?: string;
   recipient: string;
-  /** Actual amount transferred in smallest unit (Luna or micro-USDT) */
+  /** Actual amount transferred in smallest unit (Luna (or original units for archived records)) */
   amountBase: bigint;
-  /** For Polygon USDT, the token contract that emitted the Transfer event */
+  /** Original receipt metadata only. */
   tokenContract?: string;
   /** Optional transaction memo/data for Nimiq transactions */
   memo?: string;
@@ -705,6 +575,7 @@ export function reconcilePaymentVerification(params: {
 }): ReconciliationOutcome {
   const { order, evidence, claimedTxOrderMap } = params;
   const normalizedTxHash = evidence.txHash.trim().toLowerCase();
+  if (order.asset !== 'NIM' || !['nimiq-testnet','nimiq-mainnet'].includes(order.network)) return {paymentStatus: order.paymentStatus, reviewReason: 'Archived payment method. Read-only history.', shouldBindTxHash: false};
 
   // A verified receipt is terminal; public requests cannot erase it.
   if (order.paymentStatus === 'confirmed') return { paymentStatus: 'confirmed', shouldBindTxHash: false };
@@ -744,46 +615,6 @@ export function reconcilePaymentVerification(params: {
       reviewReason: `Network mismatch: order requires ${order.network}, but transaction is on ${evidence.network}. Cross-network fallback is strictly prohibited.`,
       shouldBindTxHash: false,
     };
-  }
-
-  // 5. For Polygon (Mainnet USDT or Amoy TEST TOKEN), verify token contract matches order snapshot contract
-  if (order.asset === 'USDT') {
-    const expectedContract =
-      order.network === 'polygon-amoy'
-        ? order.snapshotTokenContract || null
-        : order.snapshotTokenContract || POLYGON_USDT_CONTRACT;
-
-    if (!expectedContract) {
-      return {
-        paymentStatus: 'needs_review',
-        reviewReason:
-          'Polygon Amoy TEST TOKEN contract was not configured on this order. Cannot verify ERC-20 transfer without an approved Amoy TEST TOKEN contract.',
-        shouldBindTxHash: false,
-      };
-    }
-
-    if (
-      order.network === 'polygon-amoy' &&
-      expectedContract.toLowerCase() === POLYGON_USDT_CONTRACT.toLowerCase()
-    ) {
-      return {
-        paymentStatus: 'failed',
-        reviewReason:
-          'Invalid configuration: Polygon Mainnet USDT contract cannot be used on Polygon Amoy Testnet.',
-        shouldBindTxHash: false,
-      };
-    }
-
-    if (
-      !evidence.tokenContract ||
-      evidence.tokenContract.toLowerCase() !== expectedContract.toLowerCase()
-    ) {
-      return {
-        paymentStatus: 'needs_review',
-        reviewReason: `Token contract mismatch on ${order.network}: expected ${expectedContract}.`,
-        shouldBindTxHash: false,
-      };
-    }
   }
 
   // 6. Verify recipient matches snapshotRecipient
@@ -929,10 +760,4 @@ export function getOrderStatusBadgeClasses(status: OrderBadgeStatus): string {
     return 'bg-teal-900/30 text-teal-500';
   }
   return 'bg-slate-800 text-slate-400';
-}
-
-
-
-export function paymentIntentMessage(o: OrderSnapshot): string {
-  return ['NimTera payment intent', o.publicToken, o.network, o.snapshotTokenContract || 'NIM', o.snapshotRecipient.toLowerCase(), o.amountBase, o.createdAt].join('\n');
 }

@@ -21,9 +21,9 @@ export function StoreLogoSettings({logo,name,locale,token,onSaved}:{logo?:string
    const response=await fetch('/api/seller/store-logo',{method:'PATCH',headers:{'Content-Type':'application/json',...sellerAuthHeaders(token)},body:JSON.stringify({logoUrl})});if(!response.ok)throw new Error('save');const data=await response.json();onSaved(data.store);if(active.current)setNotice(file?text[6]:text[7]);
   } catch {if(active.current)setError(true);} finally {if(active.current)setBusy(false);}
  }
- return <section className="lg:col-span-12 bg-[#1C2430] border border-slate-600 rounded-2xl p-6 space-y-3" aria-label={text[0]}>
+ return <section className="lg:col-span-12 bg-[var(--surface-card)] border border-slate-600 rounded-2xl p-6 space-y-3" aria-label={text[0]}>
   <h2 className="text-lg font-bold">{text[0]}</h2><div className="flex items-center gap-4 flex-wrap">
-   {logo?<img src={logo} alt={`${name} logo`} data-testid="shop-logo-preview" className="w-24 h-24 rounded-xl object-contain bg-white p-2"/>:<div className="w-24 h-24 rounded-xl bg-[#263242] border border-slate-500 grid place-items-center text-3xl font-semibold" aria-hidden="true">{name.slice(0,1).toUpperCase()}</div>}
+   {logo?<img src={logo} alt={`${name} logo`} data-testid="shop-logo-preview" className="w-24 h-24 rounded-xl object-contain bg-white p-2"/>:<div className="w-24 h-24 rounded-xl bg-[var(--surface-raised)] border border-slate-500 grid place-items-center text-3xl font-semibold" aria-hidden="true">{name.slice(0,1).toUpperCase()}</div>}
    <label className="cursor-pointer bg-teal-400 text-slate-950 font-semibold text-sm rounded-xl px-4 py-2 focus-within:outline-2 focus-within:outline-teal-200">{busy?text[3]:text[1]}<input type="file" accept="image/jpeg,image/png,image/webp" aria-label={text[1]} data-testid="shop-logo-upload" className="sr-only" disabled={busy} onChange={event=>{const file=event.target.files?.[0];event.target.value='';if(file)void save(file);}}/></label>
    {logo&&<button type="button" disabled={busy} onClick={()=>void save()} className="rounded-xl border border-slate-500 px-4 py-2 text-sm">{text[2]}</button>}
   </div><p className="text-xs text-slate-300">{text[4]}</p>{error&&<p role="alert" className="text-sm text-rose-200">{text[5]}</p>}{notice&&<p role="status" className="text-sm text-teal-200">{notice}</p>}

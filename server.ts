@@ -1,7 +1,6 @@
 import { normalizeProductImage, saveProductImage, readProductImage, validProductImageUrl } from './src/server/productImages.js';
 import { requestState, scopedDatabase, scopedMap } from './src/server/requestState.js';
-import { verifyMessage } from 'ethers';
-import { readPaymentEvidence, paymentIntentMessage } from './src/server/payments.js';
+import { readPaymentEvidence } from './src/server/payments.js';
 import 'dotenv/config';
 import express, { type Request, type Response, type NextFunction } from 'express';
 import crypto from 'node:crypto';
@@ -9,21 +8,16 @@ import fs from 'node:fs';
 import path from 'node:path';
 import {
   calculateCartTotals,
+  isActiveNimOrder,
   createValidNimiqAddress,
   DEFAULT_NETWORK_ENV,
-  ERC20_TRANSFER_TOPIC,
   formatAssetAmount,
   getAssetLabelForEnvironment,
   getNetworkEnvironment,
   NETWORK_CONFIGS,
-  POLYGON_AMOY_CHAIN_ID,
-  POLYGON_MAINNET_CHAIN_ID,
-  POLYGON_USDT_CONTRACT,
   reconcilePaymentVerification,
   resolveNetworkId,
-  validateAmoyTestTokenContract,
   validateNimiqAddress,
-  validatePolygonAddress,
   validateSellerPassword,
   type CartItemInput,
   type FulfillmentMode,
@@ -46,10 +40,6 @@ const ALLOWLISTED_NIMIQ_TESTNET_RPC =
   process.env.NIMIQ_TESTNET_RPC_URL || NETWORK_CONFIGS['nimiq-testnet'].defaultRpcUrl;
 const ALLOWLISTED_NIMIQ_MAINNET_RPC =
   process.env.NIMIQ_MAINNET_RPC_URL || NETWORK_CONFIGS['nimiq-mainnet'].defaultRpcUrl;
-const ALLOWLISTED_POLYGON_AMOY_RPC =
-  process.env.POLYGON_AMOY_RPC_URL || NETWORK_CONFIGS['polygon-amoy'].defaultRpcUrl;
-const ALLOWLISTED_POLYGON_MAINNET_RPC =
-  process.env.POLYGON_MAINNET_RPC_URL || NETWORK_CONFIGS['polygon-mainnet'].defaultRpcUrl;
 
 export interface StoreRecord {
   slug: string;
@@ -60,12 +50,8 @@ export interface StoreRecord {
   activeEnvironment: NetworkEnvironment;
   /** Mainnet Recipient Wallet Profile */
   nimiqAddress: string | null;
-  polygonAddress: string | null;
   /** Testnet Recipient Wallet Profile (Strictly separated from Mainnet) */
   nimiqTestnetAddress: string | null;
-  polygonAmoyAddress: string | null;
-  /** Optional 6-decimal ERC-20 TEST TOKEN contract on Polygon Amoy (Chain ID 80002). Must NEVER equal Mainnet USDT contract */
-  polygonAmoyTestTokenContract: string | null;
   supportsPickup: boolean;
   supportsDelivery: boolean;
   supportsDineIn: boolean;
@@ -276,9 +262,9 @@ function enrollmentDetails(seller: SellerAccount) {
 }
 
 const verifyingOrders = new Set<string>();
-const rpcUrls: Record<string, string> = { 'nimiq-testnet': ALLOWLISTED_NIMIQ_TESTNET_RPC, 'polygon-amoy': ALLOWLISTED_POLYGON_AMOY_RPC };
+const rpcUrls: Record<string, string> = { 'nimiq-testnet': ALLOWLISTED_NIMIQ_TESTNET_RPC };
 export async function verifyOrderPayment(order: OrderSnapshot, hash: string) {
-  if (order.paymentStatus === 'confirmed') return;
+  if (!isActiveNimOrder(order) || order.paymentStatus === 'confirmed') return;
   if (verifyingOrders.has(order.id)) throw new Error('Verification already running; retry the read later.');
   verifyingOrders.add(order.id);
   try {
@@ -301,7 +287,7 @@ export async function verifyOrderPayment(order: OrderSnapshot, hash: string) {
   } finally { verifyingOrders.delete(order.id); }
 }
 export async function reconcilePendingPayments() {
-  for (const order of db.orders.filter(o => o.environment === 'testnet' && o.txHash && o.paymentStatus === 'pending').slice(0, 50)) {
+  for (const order of db.orders.filter(o => isActiveNimOrder(o) && o.txHash && o.paymentStatus === 'pending').slice(0, 50)) {
     try { await verifyOrderPayment(order, order.txHash!); } catch { /* pending reads retry on the next bounded tick */ }
   }
 }
@@ -328,11 +314,12 @@ export async function createApp(options: { apiOnly?: boolean } = {}) {
       if (b.environment !== undefined && !['testnet','mainnet'].includes(b.environment)) { res.status(400).json({ error: 'Unknown environment.' }); return; }
       for (const k of ['defaultLocale','voiceLocale']) if (b[k] !== undefined && !['en','id','zh-CN','vi','ms','ru'].includes(b[k])) { res.status(400).json({ error: 'Unsupported language.' }); return; }
       if ('sandboxSimulation' in b) { res.status(400).json({ error: 'Client-supplied payment evidence is not accepted.' }); return; }
-      const strings = ['email','password','currentPassword','totpCode','storeName','storeSlug','name','description','category','imageUrl','priceNimLuna','priceUsdtMicro','txHash','asset','environment','fulfillmentMode','fulfillmentStatus','tableOrNote','manualPaymentNote','defaultLocale','voiceLocale','sender','signature'];
+      if (['polygonAddress','polygonAmoyAddress','polygonAmoyTestTokenContract','priceUsdtMicro'].some(key => Object.hasOwn(b,key))) { res.status(400).json({error:'Only NIM payments and Nimiq wallets are supported. Retired payment fields are read-only.'}); return; }
+      const strings = ['email','password','currentPassword','totpCode','storeName','storeSlug','name','description','category','imageUrl','priceNimLuna','txHash','asset','environment','fulfillmentMode','fulfillmentStatus','tableOrNote','manualPaymentNote','defaultLocale','voiceLocale'];
       for (const k of strings) if (b[k] !== undefined && (typeof b[k] !== 'string' || b[k].length > (k === 'imageUrl' ? 2048 : 4096))) { res.status(400).json({ error: `Invalid ${k}.` }); return; }
-      for (const k of ['nimiqAddress','polygonAddress','nimiqTestnetAddress','polygonAmoyAddress','polygonAmoyTestTokenContract']) if (b[k] !== undefined && b[k] !== null && (typeof b[k] !== 'string' || b[k].length > 128)) { res.status(400).json({ error: `Invalid ${k}.` }); return; }
+      for (const k of ['nimiqAddress','nimiqTestnetAddress']) if (b[k] !== undefined && b[k] !== null && (typeof b[k] !== 'string' || b[k].length > 128)) { res.status(400).json({ error: `Invalid ${k}.` }); return; }
       for (const k of ['supportsPickup','supportsDelivery','supportsDineIn','available']) if (b[k] !== undefined && typeof b[k] !== 'boolean') { res.status(400).json({ error: `Invalid ${k}.` }); return; }
-      for (const k of ['priceNimLuna','priceUsdtMicro']) if (b[k] && (!/^[0-9]{1,30}$/.test(b[k]) || BigInt(b[k]) > BigInt(Number.MAX_SAFE_INTEGER))) { res.status(400).json({ error: 'Invalid price.' }); return; }
+      for (const k of ['priceNimLuna']) if (b[k] && (!/^[0-9]{1,30}$/.test(b[k]) || BigInt(b[k]) > BigInt(Number.MAX_SAFE_INTEGER))) { res.status(400).json({ error: 'Invalid price.' }); return; }
       if (b.items !== undefined && (!Array.isArray(b.items) || b.items.length > 100 || b.items.some((x: any) => !x || typeof x.productId !== 'string' || !Number.isSafeInteger(x.quantity) || x.quantity < 1 || x.quantity > 99))) { res.status(400).json({ error: 'Invalid cart items.' }); return; }
       if (b.deliveryInfo !== undefined && (!b.deliveryInfo || typeof b.deliveryInfo !== 'object' || Array.isArray(b.deliveryInfo) || ['recipientName','phone','address'].some(k => typeof b.deliveryInfo[k] !== 'string' || b.deliveryInfo[k].length > 500))) { res.status(400).json({ error: 'Invalid delivery information.' }); return; }
       if ((req.path.startsWith('/auth/') || req.path.endsWith('/verify') || req.path.endsWith('/intent') || req.path.endsWith('/wallets')) && !checkPublicRateLimit(req.ip || 'local', 60)) { res.status(429).json({ error: 'Too many attempts. Please wait.' }); return; }
@@ -353,7 +340,7 @@ export async function createApp(options: { apiOnly?: boolean } = {}) {
       sessionSecret: Boolean(process.env.SESSION_SECRET && process.env.SESSION_SECRET.length >= 64),
     };
     const ready = configured.sessionSecret;
-    res.status(ready ? 200 : 503).json({ ready, configured, databaseReachable: true, testnetOnly: true, storage: 'local-single-server', nativeDeviceValidated: false });
+    res.status(ready ? 200 : 503).json({ ready, configured, databaseReachable: true, testnetOnly: true, supportedAssets: ['NIM'], activeNetwork: 'nimiq-testnet', storage: 'local-single-server', nativeDeviceValidated: false });
   });
 
   // 1. Honest Auth & Security Setup Status Endpoint
@@ -494,7 +481,6 @@ export async function createApp(options: { apiOnly?: boolean } = {}) {
       storeName,
       storeSlug,
       nimiqAddress,
-      polygonAddress,
       supportsPickup,
       supportsDelivery,
       defaultLocale,
@@ -504,7 +490,6 @@ export async function createApp(options: { apiOnly?: boolean } = {}) {
       storeName?: string;
       storeSlug?: string;
       nimiqAddress?: string;
-      polygonAddress?: string;
       supportsPickup?: boolean;
       supportsDelivery?: boolean;
       defaultLocale?: SupportedLocale;
@@ -551,22 +536,7 @@ export async function createApp(options: { apiOnly?: boolean } = {}) {
       normalizedNimiq = nimCheck.normalized;
     }
 
-    let normalizedPoly: string | null = null;
-    if (polygonAddress && polygonAddress.trim()) {
-      const polyCheck = validatePolygonAddress(polygonAddress);
-      if (!polyCheck.valid) {
-        res.status(400).json({ error: `Polygon USDT address invalid: ${polyCheck.reason}` });
-        return;
-      }
-      normalizedPoly = polyCheck.normalized;
-    }
-
-    if (!normalizedNimiq && !normalizedPoly) {
-      res.status(400).json({
-        error: 'At least one recipient wallet (Nimiq NIM or Polygon USDT) must be configured.',
-      });
-      return;
-    }
+    if (!normalizedNimiq) { res.status(400).json({error:'A valid Nimiq testnet recipient wallet is required.'}); return; }
 
     const { salt, hash } = hashPassword(password!);
     const totpSecretHex = ''; // Generated only when the seller starts optional setup in Security.
@@ -591,10 +561,7 @@ export async function createApp(options: { apiOnly?: boolean } = {}) {
       sellerId,
       activeEnvironment: DEFAULT_NETWORK_ENV,
       nimiqAddress: null,
-      polygonAddress: null,
       nimiqTestnetAddress: normalizedNimiq,
-      polygonAmoyAddress: normalizedPoly,
-      polygonAmoyTestTokenContract: process.env.POLYGON_AMOY_TEST_TOKEN_CONTRACT || null,
       supportsPickup: supportsPickup ?? true,
       supportsDelivery: supportsDelivery ?? false,
       supportsDineIn: true,
@@ -612,8 +579,8 @@ export async function createApp(options: { apiOnly?: boolean } = {}) {
       storeSlug: cleanSlug,
       sellerEmail: cleanEmail,
       action: 'STORE_ONBOARDED',
-      details: 'Store created and initial recipient wallets verified.',
-      newValue: `${normalizedNimiq || 'None'} | ${normalizedPoly || 'None'}`,
+      details: 'Store created and Nimiq testnet recipient verified.',
+      newValue: `NIM TESTNET: ${normalizedNimiq}`,
       createdAt: nowIso,
     });
     saveDatabase(db);
@@ -700,12 +667,6 @@ export async function createApp(options: { apiOnly?: boolean } = {}) {
           activeEnv === 'testnet'
             ? Boolean(store.nimiqTestnetAddress)
             : Boolean(store.nimiqAddress),
-        acceptsUsdt:
-          activeEnv === 'testnet'
-            ? Boolean(store.polygonAmoyAddress)
-            : Boolean(store.polygonAddress),
-        hasAmoyTestTokenContract: Boolean(store.polygonAmoyTestTokenContract),
-        polygonAmoyTestTokenContract: store.polygonAmoyTestTokenContract || null,
         supportsPickup: store.supportsPickup,
         supportsDelivery: store.supportsDelivery,
         supportsDineIn: store.supportsDineIn,
@@ -743,8 +704,8 @@ export async function createApp(options: { apiOnly?: boolean } = {}) {
       };
     };
 
-    if (asset !== 'NIM' && asset !== 'USDT') {
-      res.status(400).json({ error: 'Payment asset must be NIM or USDT.' });
+    if (asset !== 'NIM') {
+      res.status(400).json({ error: 'Only NIM payments are supported.' });
       return;
     }
 
@@ -757,14 +718,7 @@ export async function createApp(options: { apiOnly?: boolean } = {}) {
     if (orderEnv !== 'testnet' || store.activeEnvironment !== 'testnet' || orderEnv !== store.activeEnvironment) { res.status(403).json({ error: 'Testnet beta: mainnet checkout is disabled.' }); return; }
 
     // Select recipient strictly from the matching environment profile
-    const snapshotRecipient =
-      orderEnv === 'testnet'
-        ? asset === 'NIM'
-          ? store.nimiqTestnetAddress
-          : store.polygonAmoyAddress
-        : asset === 'NIM'
-        ? store.nimiqAddress
-        : store.polygonAddress;
+    const snapshotRecipient = store.nimiqTestnetAddress;
 
     if (!snapshotRecipient) {
       res.status(400).json({
@@ -775,9 +729,6 @@ export async function createApp(options: { apiOnly?: boolean } = {}) {
       return;
     }
 
-    if (asset === 'USDT' && (!ALLOWLISTED_POLYGON_AMOY_RPC || !validateAmoyTestTokenContract(store.polygonAmoyTestTokenContract || '').valid)) {
-      res.status(503).json({ error: 'Amoy checkout is unavailable until the operator configures a working Amoy RPC and the seller sets an approved 6-decimal test-token contract. No mainnet fallback.' }); return;
-    }
 
     const storeCatalog = db.products.filter((p) => p.storeSlug === slug);
     const calc = calculateCartTotals(items || [], storeCatalog, asset, orderEnv);
@@ -821,12 +772,7 @@ export async function createApp(options: { apiOnly?: boolean } = {}) {
     const now = Date.now();
 
     const snapshotChainId = NETWORK_CONFIGS[calc.network].chainId;
-    const snapshotTokenContract =
-      calc.network === 'polygon-mainnet'
-        ? POLYGON_USDT_CONTRACT
-        : calc.network === 'polygon-amoy'
-        ? store.polygonAmoyTestTokenContract || null
-        : null;
+    const snapshotTokenContract = null;
 
     const newOrder: OrderSnapshot = {
       id: `ord_${crypto.randomBytes(8).toString('hex')}`,
@@ -870,30 +816,17 @@ export async function createApp(options: { apiOnly?: boolean } = {}) {
       res.status(404).json({ error: 'Order not found or invalid public token.' });
       return;
     }
-    if (order.paymentStatus === 'pending' && order.txHash && Date.now() - Date.parse(order.paymentVerificationAttemptedAt || '1970-01-01') >= 15000) await verifyOrderPayment(order, order.txHash);
+    if (isActiveNimOrder(order) && order.paymentStatus === 'pending' && order.txHash && Date.now() - Date.parse(order.paymentVerificationAttemptedAt || '1970-01-01') >= 15000) await verifyOrderPayment(order, order.txHash);
     res.json({ order: sanitizeOrderForPublic(order) });
-  }));
-
-  app.post('/api/public/orders/:publicToken/intent', asyncRoute(async (req, res) => {
-    const order = db.orders.find(o => o.publicToken === req.params.publicToken);
-    if (!order || order.network !== 'polygon-amoy' || order.environment !== 'testnet' || order.paymentStatus !== 'unpaid' || Date.now() > Date.parse(order.expiresAt)) { res.status(409).json({ error: 'Invoice cannot accept a new payment intent.' }); return; }
-    const { sender, signature } = req.body;
-    if (!validatePolygonAddress(sender || '').valid || !/^0x[0-9a-f]{130}$/i.test(signature || '')) { res.status(400).json({ error: 'Signed payment intent required.' }); return; }
-    let recovered: string;
-    try { recovered = verifyMessage(paymentIntentMessage(order), signature); } catch { res.status(400).json({ error: 'Invalid signature.' }); return; }
-    if (recovered.toLowerCase() !== sender.toLowerCase() || (order.payerAddress && order.payerAddress.toLowerCase() !== recovered.toLowerCase())) { res.status(409).json({ error: 'Invoice payer mismatch.' }); return; }
-    order.payerAddress = recovered;
-    saveDatabase(db);
-    res.json({ ok: true });
   }));
 
   // Browser supplies only a hash hint; all payment evidence is read by the server.
   app.post('/api/public/orders/:publicToken/verify', asyncRoute(async (req, res) => {
     const order = db.orders.find(o => o.publicToken === req.params.publicToken);
     if (!order) { res.status(404).json({ error: 'Order not found.' }); return; }
-    if (order.environment !== 'testnet') { res.status(403).json({ error: 'Mainnet disabled in this testnet beta.' }); return; }
+    if (!isActiveNimOrder(order)) { res.status(410).json({error:'This payment method is retired or disabled. The original order is preserved as read-only history.'}); return; }
     const hash = (req.body.txHash || '').trim();
-    const valid = order.asset === 'NIM' ? /^[0-9a-f]{64}$/i.test(hash) : /^0x[0-9a-f]{64}$/i.test(hash);
+    const valid = /^[0-9a-f]{64}$/i.test(hash);
     if (!valid) { res.status(400).json({ error: 'Invalid transaction hash for this network.' }); return; }
     if (order.paymentStatus !== 'confirmed') await verifyOrderPayment(order, hash);
     res.json({ order: sanitizeOrderForPublic(order), verificationSource: `${order.network}_rpc` });
@@ -910,7 +843,7 @@ export async function createApp(options: { apiOnly?: boolean } = {}) {
       res.status(404).json({ error: 'Store not found.' });
       return;
     }
-    const pendingCheck = db.orders.find(o => o.storeSlug === storeSlug && o.paymentStatus === 'pending' && o.txHash && Date.now() - Date.parse(o.paymentVerificationAttemptedAt || '1970-01-01') >= 15000);
+    const pendingCheck = db.orders.find(o => isActiveNimOrder(o) && o.storeSlug === storeSlug && o.paymentStatus === 'pending' && o.txHash && Date.now() - Date.parse(o.paymentVerificationAttemptedAt || '1970-01-01') >= 15000);
     if (pendingCheck?.txHash) await verifyOrderPayment(pendingCheck, pendingCheck.txHash);
     const products = db.products.filter((p) => p.storeSlug === storeSlug);
     const orders = db.orders.filter((o) => o.storeSlug === storeSlug);
@@ -918,25 +851,22 @@ export async function createApp(options: { apiOnly?: boolean } = {}) {
 
     // Strictly separate MAINNET (Real Sales) vs TESTNET (Sandbox Testing — NEVER counted as real sales)
     let confirmedMainnetNimLuna = 0n;
-    let confirmedMainnetUsdtMicro = 0n;
     let confirmedMainnetOrdersCount = 0;
     let totalMainnetOrdersCount = 0;
 
     let confirmedTestnetNimLuna = 0n;
-    let confirmedTestTokenMicro = 0n;
     let confirmedTestnetOrdersCount = 0;
     let totalTestnetOrdersCount = 0;
 
     for (const ord of orders) {
-      const env = ord.environment || getNetworkEnvironment(ord.network);
+      if (ord.asset !== 'NIM' || !['nimiq-testnet','nimiq-mainnet'].includes(ord.network)) continue;
+      const env = ord.environment || (ord.network.endsWith('mainnet') ? 'mainnet' : 'testnet');
       if (env === 'testnet') {
         totalTestnetOrdersCount += 1;
         if (ord.paymentStatus === 'confirmed') {
           confirmedTestnetOrdersCount += 1;
           if (ord.asset === 'NIM') {
             confirmedTestnetNimLuna += BigInt(ord.amountBase);
-          } else if (ord.asset === 'USDT') {
-            confirmedTestTokenMicro += BigInt(ord.amountBase);
           }
         }
       } else {
@@ -945,8 +875,6 @@ export async function createApp(options: { apiOnly?: boolean } = {}) {
           confirmedMainnetOrdersCount += 1;
           if (ord.asset === 'NIM') {
             confirmedMainnetNimLuna += BigInt(ord.amountBase);
-          } else if (ord.asset === 'USDT') {
-            confirmedMainnetUsdtMicro += BigInt(ord.amountBase);
           }
         }
       }
@@ -961,16 +889,12 @@ export async function createApp(options: { apiOnly?: boolean } = {}) {
       metrics: {
         confirmedNimLuna: confirmedMainnetNimLuna.toString(),
         confirmedNimFormatted: formatAssetAmount(confirmedMainnetNimLuna, 'NIM', 'mainnet'),
-        confirmedUsdtMicro: confirmedMainnetUsdtMicro.toString(),
-        confirmedUsdtFormatted: formatAssetAmount(confirmedMainnetUsdtMicro, 'USDT', 'mainnet'),
         confirmedOrdersCount: confirmedMainnetOrdersCount,
         totalOrdersCount: totalMainnetOrdersCount,
       },
       testnetMetrics: {
         confirmedNimTestnetLuna: confirmedTestnetNimLuna.toString(),
         confirmedNimTestnetFormatted: formatAssetAmount(confirmedTestnetNimLuna, 'NIM', 'testnet'),
-        confirmedTestTokenMicro: confirmedTestTokenMicro.toString(),
-        confirmedTestTokenFormatted: formatAssetAmount(confirmedTestTokenMicro, 'USDT', 'testnet'),
         confirmedTestnetOrdersCount,
         totalTestnetOrdersCount,
       },
@@ -1038,7 +962,7 @@ export async function createApp(options: { apiOnly?: boolean } = {}) {
   // Seller Product Management (Create / Update)
   app.post('/api/seller/products', requireSellerAuth, asyncRoute(async (req: AuthedRequest, res) => {
     const storeSlug = req.sellerSession!.storeSlug;
-    const { name, description, category, imageUrl, available, priceNimLuna, priceUsdtMicro } =
+    const { name, description, category, imageUrl, available, priceNimLuna } =
       req.body as Partial<ProductRecord>;
 
     const cleanName = (name || '').trim().slice(0, 80);
@@ -1049,12 +973,9 @@ export async function createApp(options: { apiOnly?: boolean } = {}) {
 
     const validNim =
       priceNimLuna && BigInt(priceNimLuna) > 0n ? BigInt(priceNimLuna).toString() : null;
-    const validUsdt =
-      priceUsdtMicro && BigInt(priceUsdtMicro) > 0n ? BigInt(priceUsdtMicro).toString() : null;
-
-    if (!validNim && !validUsdt) {
+    if (!validNim) {
       res.status(400).json({
-        error: 'Product must have at least one valid price (NIM or Polygon USDT).',
+        error: 'Product must have a valid NIM price.',
       });
       return;
     }
@@ -1074,7 +995,6 @@ export async function createApp(options: { apiOnly?: boolean } = {}) {
         '/products/product_iced_latte_1793717983788.jpg',
       available: available ?? true,
       priceNimLuna: validNim,
-      priceUsdtMicro: validUsdt,
     };
 
     db.products.push(newProd);
@@ -1094,7 +1014,7 @@ export async function createApp(options: { apiOnly?: boolean } = {}) {
 
     const originalProduct = product;
     const draft = { ...product };
-    const { name, description, category, imageUrl, available, priceNimLuna, priceUsdtMicro } =
+    const { name, description, category, imageUrl, available, priceNimLuna } =
       req.body as Partial<ProductRecord>;
 
     if (name !== undefined) draft.name = name.trim().slice(0, 80) || draft.name;
@@ -1111,17 +1031,7 @@ export async function createApp(options: { apiOnly?: boolean } = {}) {
       draft.priceNimLuna =
         priceNimLuna && BigInt(priceNimLuna) > 0n ? BigInt(priceNimLuna).toString() : null;
     }
-    if (priceUsdtMicro !== undefined) {
-      draft.priceUsdtMicro =
-        priceUsdtMicro && BigInt(priceUsdtMicro) > 0n ? BigInt(priceUsdtMicro).toString() : null;
-    }
-
-    if (!draft.priceNimLuna && !draft.priceUsdtMicro) {
-      res.status(400).json({
-        error: 'At least one asset price (NIM or USDT) must remain active.',
-      });
-      return;
-    }
+    if (!draft.priceNimLuna) { res.status(400).json({error:'A valid NIM price is required.'}); return; }
 
     Object.assign(originalProduct, draft);
     saveDatabase(db);
@@ -1152,6 +1062,8 @@ export async function createApp(options: { apiOnly?: boolean } = {}) {
       });
       return;
     }
+
+    if (!isActiveNimOrder(order)) { res.status(410).json({error:'Archived orders are read-only.'}); return; }
 
     const { fulfillmentStatus, manualPaymentNote } = req.body as {
       fulfillmentStatus?: FulfillmentStatus;
@@ -1188,7 +1100,7 @@ export async function createApp(options: { apiOnly?: boolean } = {}) {
   });
 
   // Seller Wallet & Store Update (Requires password re-auth + 2FA TOTP, writes audit log, preserves old order snapshots)
-  // Supports separated Testnet and Mainnet recipient wallet profiles & Amoy TEST TOKEN contract validation
+  // Nimiq-only profiles; historical metadata is never overwritten.
   app.put('/api/seller/wallets', requireSellerAuth, (req: AuthedRequest, res) => {
     const storeSlug = req.sellerSession!.storeSlug;
     const seller = db.sellers.find((s) => s.id === req.sellerSession!.sellerId);
@@ -1203,10 +1115,7 @@ export async function createApp(options: { apiOnly?: boolean } = {}) {
       currentPassword,
       totpCode,
       nimiqAddress,
-      polygonAddress,
       nimiqTestnetAddress,
-      polygonAmoyAddress,
-      polygonAmoyTestTokenContract,
       storeName,
       supportsPickup,
       supportsDelivery,
@@ -1216,10 +1125,7 @@ export async function createApp(options: { apiOnly?: boolean } = {}) {
       currentPassword?: string;
       totpCode?: string;
       nimiqAddress?: string | null;
-      polygonAddress?: string | null;
       nimiqTestnetAddress?: string | null;
-      polygonAmoyAddress?: string | null;
-      polygonAmoyTestTokenContract?: string | null;
       storeName?: string;
       supportsPickup?: boolean;
       supportsDelivery?: boolean;
@@ -1242,7 +1148,7 @@ export async function createApp(options: { apiOnly?: boolean } = {}) {
       return;
     }
 
-    let nextNim: string | null = null;
+    let nextNim: string | null = store.nimiqAddress;
     if (nimiqAddress && nimiqAddress.trim()) {
       const check = validateNimiqAddress(nimiqAddress);
       if (!check.valid) {
@@ -1250,16 +1156,6 @@ export async function createApp(options: { apiOnly?: boolean } = {}) {
         return;
       }
       nextNim = check.normalized;
-    }
-
-    let nextPoly: string | null = null;
-    if (polygonAddress && polygonAddress.trim()) {
-      const check = validatePolygonAddress(polygonAddress);
-      if (!check.valid) {
-        res.status(400).json({ error: `Mainnet Polygon address error: ${check.reason}` });
-        return;
-      }
-      nextPoly = check.normalized;
     }
 
     let nextTestNim: string | null = store.nimiqTestnetAddress;
@@ -1276,45 +1172,12 @@ export async function createApp(options: { apiOnly?: boolean } = {}) {
       }
     }
 
-    let nextAmoyPoly: string | null = store.polygonAmoyAddress;
-    if (polygonAmoyAddress !== undefined) {
-      if (polygonAmoyAddress && polygonAmoyAddress.trim()) {
-        const check = validatePolygonAddress(polygonAmoyAddress);
-        if (!check.valid) {
-          res.status(400).json({ error: `Polygon Amoy Testnet address error: ${check.reason}` });
-          return;
-        }
-        nextAmoyPoly = check.normalized;
-      } else {
-        nextAmoyPoly = null;
-      }
-    }
-
-    let nextAmoyContract: string | null = store.polygonAmoyTestTokenContract;
-    if (polygonAmoyTestTokenContract !== undefined) {
-      const contractCheck = validateAmoyTestTokenContract(polygonAmoyTestTokenContract || '');
-      if (!contractCheck.valid) {
-        res.status(400).json({ error: contractCheck.reason });
-        return;
-      }
-      nextAmoyContract = contractCheck.normalized;
-    }
-
-    if (!nextNim && !nextPoly && !nextTestNim && !nextAmoyPoly) {
-      res.status(400).json({
-        error: 'At least one recipient wallet address must remain active.',
-      });
-      return;
-    }
-
-    const oldWallets = `MAINNET[NIM:${store.nimiqAddress || 'None'}, USDT:${store.polygonAddress || 'None'}] | TESTNET[NIM:${store.nimiqTestnetAddress || 'None'}, AMOY:${store.polygonAmoyAddress || 'None'}, TOKEN:${store.polygonAmoyTestTokenContract || 'None'}]`;
-    const newWallets = `MAINNET[NIM:${nextNim || 'None'}, USDT:${nextPoly || 'None'}] | TESTNET[NIM:${nextTestNim || 'None'}, AMOY:${nextAmoyPoly || 'None'}, TOKEN:${nextAmoyContract || 'None'}]`;
+    if (!nextNim && !nextTestNim) { res.status(400).json({error:'A Nimiq recipient wallet is required.'}); return; }
+    const oldWallets = `MAINNET[NIM:${store.nimiqAddress || 'None'}] | TESTNET[NIM:${store.nimiqTestnetAddress || 'None'}]`;
+    const newWallets = `MAINNET[NIM:${nextNim || 'None'}] | TESTNET[NIM:${nextTestNim || 'None'}]`;
 
     store.nimiqAddress = nextNim;
-    store.polygonAddress = nextPoly;
     store.nimiqTestnetAddress = nextTestNim;
-    store.polygonAmoyAddress = nextAmoyPoly;
-    store.polygonAmoyTestTokenContract = nextAmoyContract;
     if (storeName && storeName.trim()) store.name = storeName.trim().slice(0, 60);
     if (supportsPickup !== undefined) store.supportsPickup = Boolean(supportsPickup);
     if (supportsDelivery !== undefined) store.supportsDelivery = Boolean(supportsDelivery);

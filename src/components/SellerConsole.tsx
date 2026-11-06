@@ -39,11 +39,9 @@ import {
   DEFAULT_NETWORK_ENV,
   formatAssetAmount,
   formatLunaToNim,
-  formatMicroToUsdt,
+  isActiveNimOrder,
   MENU_CATEGORY_COLUMNS,
   parseNimToLuna,
-  parseUsdtToMicro,
-  POLYGON_USDT_CONTRACT,
   shouldTriggerAudioAnnouncement,
   type CartItemInput,
   type FulfillmentStatus,
@@ -67,10 +65,7 @@ interface StoreRecord {
   name: string;
   activeEnvironment?: NetworkEnvironment;
   nimiqAddress: string | null;
-  polygonAddress: string | null;
   nimiqTestnetAddress?: string | null;
-  polygonAmoyAddress?: string | null;
-  polygonAmoyTestTokenContract?: string | null;
   supportsPickup: boolean;
   supportsDelivery: boolean;
   supportsDineIn: boolean;
@@ -125,13 +120,11 @@ export const SellerConsole: React.FC<SellerConsoleProps> = ({
   const [auditLogs, setAuditLogs] = useState<AuditLogEntry[]>([]);
   const [metrics, setMetrics] = useState<{
     confirmedNimFormatted: string;
-    confirmedUsdtFormatted: string;
     confirmedOrdersCount: number;
     totalOrdersCount: number;
   } | null>(null);
   const [testnetMetrics, setTestnetMetrics] = useState<{
     confirmedNimFormatted: string;
-    confirmedTestTokenFormatted: string;
     confirmedOrdersCount: number;
     totalOrdersCount: number;
   } | null>(null);
@@ -159,7 +152,6 @@ export const SellerConsole: React.FC<SellerConsoleProps> = ({
   const [regEmail, setRegEmail] = useState('');
   const [regPassword, setRegPassword] = useState('');
   const [regNimiqAddr, setRegNimiqAddr] = useState('');
-  const [regPolygonAddr, setRegPolygonAddr] = useState('');
   const [regPickup, setRegPickup] = useState(true);
   const [regDelivery, setRegDelivery] = useState(false);
 
@@ -182,7 +174,6 @@ export const SellerConsole: React.FC<SellerConsoleProps> = ({
   const [newProdDesc, setNewProdDesc] = useState('');
   const [newProdCat, setNewProdCat] = useState<ProductCategory>('food');
   const [newProdNim, setNewProdNim] = useState('40');
-  const [newProdUsdt, setNewProdUsdt] = useState('1.20');
   const [newProdImg, setNewProdImg] = useState(PRODUCT_IMAGE_PRESETS[0].url);
   const [photoBusy, setPhotoBusy] = useState(false);
   const [prodFeedback, setProdFeedback] = useState<string | null>(null);
@@ -192,10 +183,7 @@ export const SellerConsole: React.FC<SellerConsoleProps> = ({
 
   // Wallet & Settings state (Separated Testnet and Mainnet Profiles)
   const [walletNimInput, setWalletNimInput] = useState('');
-  const [walletPolyInput, setWalletPolyInput] = useState('');
   const [walletTestnetNimInput, setWalletTestnetNimInput] = useState('');
-  const [walletTestnetPolyInput, setWalletTestnetPolyInput] = useState('');
-  const [walletAmoyTokenContractInput, setWalletAmoyTokenContractInput] = useState('');
   const [walletConfirmPass, setWalletConfirmPass] = useState('');
   const [walletConfirmTotp, setWalletConfirmTotp] = useState('');
   const [walletFeedback, setWalletFeedback] = useState<{ type: 'ok' | 'err'; msg: string } | null>(
@@ -244,22 +232,15 @@ export const SellerConsole: React.FC<SellerConsoleProps> = ({
       setProducts(data.products || []);
       setAuditLogs(data.auditLogs || []);
       setMetrics(data.metrics || null);
-      setTestnetMetrics(data.testnetMetrics || null);
+      setTestnetMetrics(data.testnetMetrics ? {confirmedNimFormatted:data.testnetMetrics.confirmedNimTestnetFormatted,confirmedOrdersCount:data.testnetMetrics.confirmedTestnetOrdersCount,totalOrdersCount:data.testnetMetrics.totalTestnetOrdersCount} : null);
 
       const incomingOrders: OrderSnapshot[] = data.orders || [];
       setOrders(incomingOrders);
 
       // Initialize separated Mainnet and Testnet wallet form inputs once
       setWalletNimInput((prev) => prev || data.store?.nimiqAddress || '');
-      setWalletPolyInput((prev) => prev || data.store?.polygonAddress || '');
       setWalletTestnetNimInput(
-        (prev) => prev || data.store?.nimiqTestnetAddress || data.store?.nimiqAddress || ''
-      );
-      setWalletTestnetPolyInput(
-        (prev) => prev || data.store?.polygonAmoyAddress || data.store?.polygonAddress || ''
-      );
-      setWalletAmoyTokenContractInput(
-        (prev) => prev || data.store?.polygonAmoyTestTokenContract || ''
+        (prev) => prev || data.store?.nimiqTestnetAddress || ''
       );
 
       // Check for newly confirmed orders in the active environment to trigger deduplicated audio announcement
@@ -267,10 +248,10 @@ export const SellerConsole: React.FC<SellerConsoleProps> = ({
       for (const ord of incomingOrders) {
         const ordEnv =
           ord.environment ||
-          (ord.network === 'nimiq-testnet' || ord.network === 'polygon-amoy'
+          (ord.network === 'nimiq-testnet'
             ? 'testnet'
             : 'mainnet');
-        if (ord.paymentStatus === 'confirmed' && ordEnv === currentEnv) {
+        if (isActiveNimOrder(ord) && ord.paymentStatus === 'confirmed' && ordEnv === currentEnv) {
           const shouldPlay = shouldTriggerAudioAnnouncement({
             orderId: `${ordEnv}_${ord.id}`,
             eventType: 'payment_confirmed',
@@ -387,14 +368,9 @@ export const SellerConsole: React.FC<SellerConsoleProps> = ({
       setActiveEnv(data.store?.activeEnvironment || 'testnet');
       setRestoNameDraft(data.store?.name || '');
       setWalletNimInput(data.store?.nimiqAddress || '');
-      setWalletPolyInput(data.store?.polygonAddress || '');
       setWalletTestnetNimInput(
-        data.store?.nimiqTestnetAddress || data.store?.nimiqAddress || ''
+        data.store?.nimiqTestnetAddress || ''
       );
-      setWalletTestnetPolyInput(
-        data.store?.polygonAmoyAddress || data.store?.polygonAddress || ''
-      );
-      setWalletAmoyTokenContractInput(data.store?.polygonAmoyTestTokenContract || '');
       setAuthLoading(false);
       setMfaEnabled(data.seller.totpEnabled===true);
       await fetchDashboardData(COOKIE_SESSION);
@@ -441,7 +417,6 @@ export const SellerConsole: React.FC<SellerConsoleProps> = ({
           storeName: regStoreName,
           storeSlug: regStoreSlug,
           nimiqAddress: regNimiqAddr,
-          polygonAddress: regPolygonAddr,
           supportsPickup: regPickup,
           supportsDelivery: regDelivery,
           defaultLocale: locale,
@@ -594,7 +569,6 @@ export const SellerConsole: React.FC<SellerConsoleProps> = ({
     setNewProdDesc(prod.description || '');
     setNewProdCat(prod.category);
     setNewProdNim(prod.priceNimLuna ? formatLunaToNim(prod.priceNimLuna) : '');
-    setNewProdUsdt(prod.priceUsdtMicro ? formatMicroToUsdt(prod.priceUsdtMicro) : '');
     setNewProdImg(prod.imageUrl || PRODUCT_IMAGE_PRESETS[0].url);
     setProdFeedback(null);
     if (openInPos) {
@@ -609,7 +583,6 @@ export const SellerConsole: React.FC<SellerConsoleProps> = ({
     setNewProdDesc('');
     setNewProdCat('drinks');
     setNewProdNim('40');
-    setNewProdUsdt('1.20');
     setNewProdImg(PRODUCT_IMAGE_PRESETS[0].url);
   };
 
@@ -618,20 +591,12 @@ export const SellerConsole: React.FC<SellerConsoleProps> = ({
     if (!sessionToken || photoBusy) return;
     setProdFeedback(null);
     const nimLuna = newProdNim.trim() ? parseNimToLuna(newProdNim) : null;
-    const usdtMicro = newProdUsdt.trim() ? parseUsdtToMicro(newProdUsdt) : null;
 
     if (newProdNim.trim() && !nimLuna) {
       setProdFeedback(uiText(locale, "Format harga NIM tidak valid (maksimal 5 desimal)."));
       return;
     }
-    if (newProdUsdt.trim() && !usdtMicro) {
-      setProdFeedback(uiText(locale, "Format harga USDT tidak valid (maksimal 6 desimal)."));
-      return;
-    }
-    if (!nimLuna && !usdtMicro) {
-      setProdFeedback(uiText(locale, "Wajib mengisi minimal satu harga (NIM atau Polygon USDT)."));
-      return;
-    }
+    if (!nimLuna) { setProdFeedback(uiText(locale,'Harga NIM wajib diisi.')); return; }
 
     const isEditing = Boolean(editingProdId);
     const endpoint = isEditing
@@ -652,7 +617,6 @@ export const SellerConsole: React.FC<SellerConsoleProps> = ({
         imageUrl: newProdImg,
         available: true,
         priceNimLuna: nimLuna ? nimLuna.toString() : null,
-        priceUsdtMicro: usdtMicro ? usdtMicro.toString() : null,
       }),
     });
     const data = await resp.json();
@@ -713,10 +677,7 @@ export const SellerConsole: React.FC<SellerConsoleProps> = ({
         currentPassword: walletConfirmPass,
         totpCode: walletConfirmTotp,
         nimiqAddress: walletNimInput,
-        polygonAddress: walletPolyInput,
         nimiqTestnetAddress: walletTestnetNimInput,
-        polygonAmoyAddress: walletTestnetPolyInput,
-        polygonAmoyTestTokenContract: walletAmoyTokenContractInput,
         activeEnvironment: activeEnv,
         storeName: store?.name,
         defaultLocale: locale,
@@ -754,7 +715,7 @@ export const SellerConsole: React.FC<SellerConsoleProps> = ({
     const rows = filteredOrdersForReports.map((o) =>
       [
         o.orderNumber,
-        o.environment || (o.network === 'nimiq-testnet' || o.network === 'polygon-amoy' ? 'testnet' : 'mainnet'),
+        o.environment || (o.network === 'nimiq-testnet' ? 'testnet' : 'mainnet'),
         o.createdAt,
         o.assetLabel || o.asset,
         o.network,
@@ -792,14 +753,14 @@ export const SellerConsole: React.FC<SellerConsoleProps> = ({
   // ============================================================================
   // UN-AUTHENTICATED VIEW: SELLER LOGIN OR ONBOARDING SETUP
   // ============================================================================
-  if (!sessionChecked) return <main className="min-h-screen bg-[#0B0F14] text-slate-200 grid place-items-center p-6"><section role="status" className="space-y-4 text-center"><p>{sessionRestoreError ? uiChoice(locale, 'Koneksi sesi belum tersedia. Sesi Anda tidak dihapus.', 'Session connection is unavailable. Your session has not been cleared.') : uiChoice(locale, 'Memulihkan sesi toko…', 'Restoring your shop session…')}</p>{sessionRestoreError && <button className="rounded-xl bg-teal-400 text-slate-950 px-5 py-2" onClick={() => { setSessionRestoreError(false); setSessionRestoreAttempt(value => value + 1); }}>{uiChoice(locale, 'Coba lagi', 'Try again')}</button>}</section></main>;
+  if (!sessionChecked) return <main className="min-h-screen bg-[var(--surface-base)] text-slate-200 grid place-items-center p-6"><section role="status" className="space-y-4 text-center"><p>{sessionRestoreError ? uiChoice(locale, 'Koneksi sesi belum tersedia. Sesi Anda tidak dihapus.', 'Session connection is unavailable. Your session has not been cleared.') : uiChoice(locale, 'Memulihkan sesi toko…', 'Restoring your shop session…')}</p>{sessionRestoreError && <button className="rounded-xl bg-teal-400 text-slate-950 px-5 py-2" onClick={() => { setSessionRestoreError(false); setSessionRestoreAttempt(value => value + 1); }}>{uiChoice(locale, 'Coba lagi', 'Try again')}</button>}</section></main>;
 
 
 
   if (!sessionToken) {
     const isSetup = activeRoute === 'setup';
     return (
-      <div className="min-h-screen bg-[#0B0F14] text-[#F8FAFC] flex flex-col justify-between p-4 sm:p-8">
+      <div className="min-h-screen bg-[var(--surface-base)] text-[var(--ink)] flex flex-col justify-between p-4 sm:p-8">
         <header className="max-w-5xl w-full mx-auto flex flex-wrap gap-3 items-center justify-between">
           <BrandLogo
             variant="champagne"
@@ -811,7 +772,7 @@ export const SellerConsole: React.FC<SellerConsoleProps> = ({
               aria-label="Language"
               value={locale}
               onChange={(e) => onChangeLocale(e.target.value as SupportedLocale)}
-              className="bg-[#1C2430] border border-slate-500 rounded-lg px-2.5 py-1.5 text-xs text-[#F8FAFC]"
+              className="bg-[var(--surface-card)] border border-slate-500 rounded-lg px-2.5 py-1.5 text-xs text-[var(--ink)]"
             >
               {(Object.keys(LOCALE_METADATA) as SupportedLocale[]).map((loc) => (
                 <option key={loc} value={loc}>
@@ -822,7 +783,7 @@ export const SellerConsole: React.FC<SellerConsoleProps> = ({
             <button
               type="button"
               onClick={() => onOpenStorefront('moonlight-cafe')}
-              className="px-3.5 py-1.5 rounded-lg bg-[#1C2430] border border-slate-500 text-xs font-medium text-slate-300 hover:text-white cursor-pointer"
+              className="px-3.5 py-1.5 rounded-lg bg-[var(--surface-card)] border border-slate-500 text-xs font-medium text-slate-300 hover:text-white cursor-pointer"
             >
               ← Storefront
             </button>
@@ -830,27 +791,27 @@ export const SellerConsole: React.FC<SellerConsoleProps> = ({
         </header>
 
         <main className="my-auto py-8 flex items-center justify-center">
-          <div className="w-full max-w-lg bg-[#1C2430] border border-slate-600 rounded-3xl p-6 sm:p-8 shadow-2xl space-y-6">
+          <div className="w-full max-w-lg bg-[var(--surface-card)] border border-slate-600 rounded-3xl p-6 sm:p-8 shadow-2xl space-y-6">
             <div className="flex items-center justify-between border-b border-slate-600 pb-4">
               <div>
-                <h1 className="font-display text-2xl sm:text-3xl font-semibold text-[#DFC496]">
+                <h1 className="font-display text-2xl sm:text-3xl font-semibold text-[var(--gold-ink)]">
                   {isSetup ? t.sellerSetupTitle : t.sellerLoginTitle}
                 </h1>
                 <p className="text-xs text-slate-300 mt-1">
                   Non-custodial merchant console · 15+ character password · optional 2FA
                 </p>
               </div>
-              <Lock className="w-6 h-6 text-[#14B8A6] shrink-0" />
+              <Lock className="w-6 h-6 text-[var(--teal-ink)] shrink-0" />
             </div>
 
             {/* Authentication security status */}
-            <div className="p-3.5 rounded-xl bg-[#0B0F14] border border-slate-600/90 text-xs space-y-2">
+            <div className="p-3.5 rounded-xl bg-[var(--surface-base)] border border-slate-600/90 text-xs space-y-2">
               <div className="flex items-center justify-between">
                 <span className="font-semibold text-slate-200 flex items-center gap-1.5">
-                  <ShieldCheck className="w-4 h-4 text-[#14B8A6]" />
+                  <ShieldCheck className="w-4 h-4 text-[var(--teal-ink)]" />
                   <span>Security & Verification Status</span>
                 </span>
-                <span className="text-[13px] font-mono text-[#2DD4BF]">
+                <span className="text-[13px] font-mono text-[var(--teal-ink)]">
                   Password · optional 2FA
                 </span>
               </div>
@@ -876,7 +837,7 @@ export const SellerConsole: React.FC<SellerConsoleProps> = ({
                     required
                     value={loginEmail}
                     onChange={(e) => setLoginEmail(e.target.value)}
-                    className="w-full bg-[#0B0F14] border border-slate-500 rounded-xl px-3.5 py-2.5 text-sm text-[#F8FAFC]"
+                    className="w-full bg-[var(--surface-base)] border border-slate-500 rounded-xl px-3.5 py-2.5 text-sm text-[var(--ink)]"
                   />
                 </div>
 
@@ -895,7 +856,7 @@ export const SellerConsole: React.FC<SellerConsoleProps> = ({
                     minLength={15}
                     value={loginPassword}
                     onChange={(e) => setLoginPassword(e.target.value)}
-                    className="w-full bg-[#0B0F14] border border-slate-500 rounded-xl px-3.5 py-2.5 text-sm text-[#F8FAFC]"
+                    className="w-full bg-[var(--surface-base)] border border-slate-500 rounded-xl px-3.5 py-2.5 text-sm text-[var(--ink)]"
                   />
                   <p className="text-[13px] text-slate-300 mt-1">{t.passwordPolicyHint}</p>
                 </div>
@@ -918,7 +879,7 @@ export const SellerConsole: React.FC<SellerConsoleProps> = ({
                     value={loginTotp}
                     onChange={(e) => setLoginTotp(e.target.value)}
                     placeholder="6-digit code"
-                    className="w-full bg-[#0B0F14] border border-slate-500 rounded-xl px-3.5 py-2.5 text-sm font-mono tracking-widest text-[#F8FAFC]"
+                    className="w-full bg-[var(--surface-base)] border border-slate-500 rounded-xl px-3.5 py-2.5 text-sm font-mono tracking-widest text-[var(--ink)]"
                   />
                   <p className="text-xs text-slate-300 mt-1">{optional2faHint(locale)}</p>
                 </div>
@@ -947,7 +908,7 @@ export const SellerConsole: React.FC<SellerConsoleProps> = ({
                       setAuthError(null);
                       onNavigateTab('setup');
                     }}
-                    className="text-xs text-[#DFC496] hover:underline cursor-pointer"
+                    className="text-xs text-[var(--gold-ink)] hover:underline cursor-pointer"
                   >
                     New merchant? Configure your store & wallets once →
                   </button>
@@ -976,7 +937,7 @@ export const SellerConsole: React.FC<SellerConsoleProps> = ({
                           );
                         }
                       }}
-                      className="w-full bg-[#0B0F14] border border-slate-500 rounded-xl px-3 py-2 text-xs text-[#F8FAFC]"
+                      className="w-full bg-[var(--surface-base)] border border-slate-500 rounded-xl px-3 py-2 text-xs text-[var(--ink)]"
                     />
                   </div>
                   <div>
@@ -989,7 +950,7 @@ export const SellerConsole: React.FC<SellerConsoleProps> = ({
                       placeholder="lantern-tea"
                       value={regStoreSlug}
                       onChange={(e) => setRegStoreSlug(e.target.value)}
-                      className="w-full bg-[#0B0F14] border border-slate-500 rounded-xl px-3 py-2 text-xs font-mono text-[#F8FAFC]"
+                      className="w-full bg-[var(--surface-base)] border border-slate-500 rounded-xl px-3 py-2 text-xs font-mono text-[var(--ink)]"
                     />
                   </div>
                 </div>
@@ -1004,7 +965,7 @@ export const SellerConsole: React.FC<SellerConsoleProps> = ({
                     placeholder="owner@lanterntea.store"
                     value={regEmail}
                     onChange={(e) => setRegEmail(e.target.value)}
-                    className="w-full bg-[#0B0F14] border border-slate-500 rounded-xl px-3 py-2 text-xs text-[#F8FAFC]"
+                    className="w-full bg-[var(--surface-base)] border border-slate-500 rounded-xl px-3 py-2 text-xs text-[var(--ink)]"
                   />
                 </div>
 
@@ -1019,38 +980,24 @@ export const SellerConsole: React.FC<SellerConsoleProps> = ({
                     placeholder="At least 15 characters..."
                     value={regPassword}
                     onChange={(e) => setRegPassword(e.target.value)}
-                    className="w-full bg-[#0B0F14] border border-slate-500 rounded-xl px-3 py-2 text-xs text-[#F8FAFC]"
+                    className="w-full bg-[var(--surface-base)] border border-slate-500 rounded-xl px-3 py-2 text-xs text-[var(--ink)]"
                   />
                 </div>
 
                 <div>
                   <label className="block text-xs font-medium text-slate-300 mb-1">
-                    Nimiq Recipient Address (Mainnet NQ... MOD-97-10 validated)
+                    Nimiq Testnet Recipient Address (NQ... MOD-97-10 validated)
                   </label>
                   <input
                     type="text"
                     placeholder="NQ..."
                     value={regNimiqAddr}
                     onChange={(e) => setRegNimiqAddr(e.target.value)}
-                    className="w-full bg-[#0B0F14] border border-slate-500 rounded-xl px-3 py-2 text-xs font-mono text-[#F8FAFC]"
+                    className="w-full bg-[var(--surface-base)] border border-slate-500 rounded-xl px-3 py-2 text-xs font-mono text-[var(--ink)]"
                   />
                 </div>
 
-                <div>
-                  <label className="block text-xs font-medium text-slate-300 mb-1">
-                    Polygon USDT Recipient Address (Mainnet 0x... Chain ID 137)
-                  </label>
-                  <input
-                    type="text"
-                    placeholder="0x..."
-                    value={regPolygonAddr}
-                    onChange={(e) => setRegPolygonAddr(e.target.value)}
-                    className="w-full bg-[#0B0F14] border border-slate-500 rounded-xl px-3 py-2 text-xs font-mono text-[#F8FAFC]"
-                  />
-                  <p className="text-[13px] text-slate-300 mt-1">
-                    TESTNET BETA ONLY: These initial addresses are saved to the Nimiq testnet / Polygon Amoy profiles, not mainnet. You may activate one asset first. Never enter seed phrases or private keys.
-                  </p>
-                </div>
+
 
                 <div className="flex items-center gap-4 text-xs text-slate-300">
                   <label className="flex items-center gap-2 cursor-pointer">
@@ -1122,9 +1069,9 @@ export const SellerConsole: React.FC<SellerConsoleProps> = ({
   ).length;
 
   return (
-    <div className="min-h-screen bg-[#0B0F14] text-[#F8FAFC] flex flex-col lg:flex-row">
+    <div className="min-h-screen bg-[var(--surface-base)] text-[var(--ink)] flex flex-col lg:flex-row">
       {/* Left Sidebar Navigation */}
-      <aside className="w-full lg:w-60 bg-[#111820] border-b lg:border-b-0 lg:border-r border-slate-600/90 flex flex-col justify-between p-4 lg:p-5 shrink-0">
+      <aside className="w-full lg:w-60 bg-[var(--surface-inset)] border-b lg:border-b-0 lg:border-r border-slate-600/90 flex flex-col justify-between p-4 lg:p-5 shrink-0">
         <div className="space-y-6">
           <div className="flex items-center justify-between">
             <BrandLogo
@@ -1168,8 +1115,8 @@ export const SellerConsole: React.FC<SellerConsoleProps> = ({
                   onClick={() => onNavigateTab(item.id)}
                   className={`flex items-center justify-between gap-3 px-3.5 py-2.5 rounded-xl text-sm font-medium transition-colors whitespace-nowrap shrink-0 cursor-pointer ${
                     active
-                      ? 'bg-[#0F3D3E] text-[#2DD4BF] border border-[#14B8A6]/40'
-                      : 'text-slate-300 hover:text-[#F8FAFC] hover:bg-[#1C2430]'
+                      ? 'bg-[var(--surface-selected)] text-[var(--teal-ink)] border border-[#14B8A6]/40'
+                      : 'text-slate-300 hover:text-[var(--ink)] hover:bg-[var(--surface-card)]'
                   }`}
                 >
                   <span className="flex items-center gap-3">
@@ -1204,10 +1151,10 @@ export const SellerConsole: React.FC<SellerConsoleProps> = ({
             <button
               type="button"
               onClick={() => onOpenStorefront(store.slug)}
-              className="w-full py-2 px-3 rounded-xl bg-[#1C2430] border border-slate-600 hover:border-slate-500 text-slate-300 flex items-center justify-between cursor-pointer"
+              className="w-full py-2 px-3 rounded-xl bg-[var(--surface-card)] border border-slate-600 hover:border-slate-500 text-slate-300 flex items-center justify-between cursor-pointer"
             >
               <span className="truncate">/s/{store.slug}</span>
-              <ExternalLink className="w-3.5 h-3.5 text-[#2DD4BF] shrink-0" />
+              <ExternalLink className="w-3.5 h-3.5 text-[var(--teal-ink)] shrink-0" />
             </button>
           )}
         </div>
@@ -1216,7 +1163,7 @@ export const SellerConsole: React.FC<SellerConsoleProps> = ({
       {/* Main Content Area */}
       <div className="flex-1 flex flex-col min-w-0">
         {/* Top Workspace Header */}
-        <header className="bg-[#0B0F14] border-b border-slate-600/80 px-4 sm:px-8 py-3.5 flex items-center justify-between gap-4">
+        <header className="bg-[var(--surface-base)] border-b border-slate-600/80 px-4 sm:px-8 py-3.5 flex items-center justify-between gap-4">
           <div className="flex items-center gap-2.5 min-w-0">
             {editingRestoName ? (
               <form onSubmit={handleSaveRestoNameInline} className="flex items-center gap-2">
@@ -1226,7 +1173,7 @@ export const SellerConsole: React.FC<SellerConsoleProps> = ({
                   value={restoNameDraft}
                   onChange={(e) => setRestoNameDraft(e.target.value)}
                   placeholder={uiText(locale, "Nama Resto...")}
-                  className="bg-[#1C2430] border border-slate-600 rounded-xl px-3 py-1 text-xs font-semibold text-[#F8FAFC]"
+                  className="bg-[var(--surface-card)] border border-slate-600 rounded-xl px-3 py-1 text-xs font-semibold text-[var(--ink)]"
                 />
                 <button
                   type="submit"
@@ -1235,7 +1182,7 @@ export const SellerConsole: React.FC<SellerConsoleProps> = ({
                 <button
                   type="button"
                   onClick={() => setEditingRestoName(false)}
-                  className="px-2 py-1 rounded-lg bg-[#1C2430] text-xs text-slate-300 cursor-pointer"
+                  className="px-2 py-1 rounded-lg bg-[var(--surface-card)] text-xs text-slate-300 cursor-pointer"
                 >{' '}{uiText(locale, "Batal")}{' '}</button>
               </form>
             ) : (
@@ -1244,7 +1191,7 @@ export const SellerConsole: React.FC<SellerConsoleProps> = ({
                   type="button"
                   data-testid="seller-header-store-btn"
                   onClick={() => store && onOpenStorefront(store.slug)}
-                  className="inline-flex items-center gap-2 px-3 py-1.5 rounded-xl bg-[#1C2430] border border-slate-600 text-sm font-semibold text-[#F8FAFC] hover:border-slate-500 truncate cursor-pointer"
+                  className="inline-flex items-center gap-2 px-3 py-1.5 rounded-xl bg-[var(--surface-card)] border border-slate-600 text-sm font-semibold text-[var(--ink)] hover:border-slate-500 truncate cursor-pointer"
                 >
                   {store?.logoUrl && <img src={store.logoUrl} alt="" data-testid="seller-shop-logo" className="w-9 h-9 rounded-lg bg-white object-contain p-1 shrink-0"/>}
                   <span className="truncate">{store?.name || 'Your shop'}</span>
@@ -1256,7 +1203,7 @@ export const SellerConsole: React.FC<SellerConsoleProps> = ({
                     setRestoNameDraft(store?.name || 'Your shop');
                     setEditingRestoName(true);
                   }}
-                  className="px-2.5 py-1.5 rounded-xl bg-[#1C2430] border border-slate-600 text-xs text-[#DFC496] hover:border-slate-500 inline-flex items-center gap-1 cursor-pointer"
+                  className="px-2.5 py-1.5 rounded-xl bg-[var(--surface-card)] border border-slate-600 text-xs text-[var(--gold-ink)] hover:border-slate-500 inline-flex items-center gap-1 cursor-pointer"
                   title={uiText(locale, "Ubah Nama Resto")}
                 >
                   <Pencil className="w-3 h-3" />
@@ -1268,16 +1215,16 @@ export const SellerConsole: React.FC<SellerConsoleProps> = ({
 
           <div className="flex items-center gap-2.5 shrink-0">
             {/* Language Selector */}
-            <div className="flex items-center gap-1.5 bg-[#1C2430] border border-slate-500/80 rounded-full px-3 py-1.5">
+            <div className="flex items-center gap-1.5 bg-[var(--surface-card)] border border-slate-500/80 rounded-full px-3 py-1.5">
               <Globe className="w-3.5 h-3.5 text-slate-300" />
               <select
                 aria-label="Seller UI Language"
                 value={locale}
                 onChange={(e) => onChangeLocale(e.target.value as SupportedLocale)}
-                className="bg-transparent text-xs font-medium text-[#F8FAFC] focus:outline-none cursor-pointer"
+                className="bg-transparent text-xs font-medium text-[var(--ink)] focus:outline-none cursor-pointer"
               >
                 {(Object.keys(LOCALE_METADATA) as SupportedLocale[]).map((loc) => (
-                  <option key={loc} value={loc} className="bg-[#1C2430]">
+                  <option key={loc} value={loc} className="bg-[var(--surface-card)]">
                     {LOCALE_METADATA[loc].shortLabel}
                   </option>
                 ))}
@@ -1296,8 +1243,8 @@ export const SellerConsole: React.FC<SellerConsoleProps> = ({
               aria-label={audioActive ? 'Mute cashier audio' : 'Activate cashier audio'}
               className={`w-9 h-9 rounded-full border flex items-center justify-center transition-colors cursor-pointer ${
                 audioActive
-                  ? 'bg-[#0F3D3E] border-[#14B8A6] text-[#2DD4BF]'
-                  : 'bg-[#1C2430] border-slate-500 text-slate-300'
+                  ? 'bg-[var(--surface-selected)] border-[#14B8A6] text-[var(--teal-ink)]'
+                  : 'bg-[var(--surface-card)] border-slate-500 text-slate-300'
               }`}
             >
               {audioActive ? (
@@ -1310,7 +1257,7 @@ export const SellerConsole: React.FC<SellerConsoleProps> = ({
             <button
               type="button"
               onClick={handleLogout}
-              className="px-3 py-1.5 rounded-full bg-[#1C2430] border border-slate-600 text-xs text-slate-300 hover:text-white cursor-pointer"
+              className="px-3 py-1.5 rounded-full bg-[var(--surface-card)] border border-slate-600 text-xs text-slate-300 hover:text-white cursor-pointer"
             >
               {t.logoutBtn}
             </button>
@@ -1341,8 +1288,8 @@ export const SellerConsole: React.FC<SellerConsoleProps> = ({
               </span>
               <span className="font-medium">
                 {activeEnv === 'testnet'
-                  ? uiText(locale, "Mode pengujian awal: Nimiq Testnet (NIM TESTNET) & Polygon Amoy (Chain ID 80002 · TEST TOKEN). Pesanan, laporan, & suara kasir testnet dipisahkan ketat dari penjualan nyata.")
-                  : uiText(locale, "Mode produksi Mainnet: Nimiq Mainnet (NIM) & Polygon Mainnet (Chain ID 137 · USDT). Pastikan pemeriksaan kesiapan Mainnet lulus sebelum menerima dana asli.")}
+                  ? uiText(locale, "Menggunakan Nimiq Testnet (NIM TESTNET). Pesanan uji terpisah dari penjualan nyata.")
+                  : uiText(locale, "Pembayaran Mainnet belum tersedia. Jangan mengirim dana asli.")}
               </span>
             </div>
 
@@ -1357,7 +1304,7 @@ export const SellerConsole: React.FC<SellerConsoleProps> = ({
                     : 'text-stone-700 hover:bg-stone-100'
                 }`}
               >
-                TESTNET (Amoy 80002 / Nimiq Test)
+                NIM TESTNET
               </button>
               <button
                 type="button"
@@ -1369,7 +1316,7 @@ export const SellerConsole: React.FC<SellerConsoleProps> = ({
                     : 'text-stone-700 hover:bg-stone-100'
                 }`}
               >
-                MAINNET (137 / Nimiq Main)
+                NIM MAINNET
               </button>
             </div>
           </div>
@@ -1395,7 +1342,7 @@ export const SellerConsole: React.FC<SellerConsoleProps> = ({
               <div className="lg:col-span-8 space-y-6">
                 <div className="flex flex-wrap items-center justify-between gap-3">
                   <div>
-                    <h1 className="text-3xl font-bold text-[#F8FAFC] tracking-tight">
+                    <h1 className="text-3xl font-bold text-[var(--ink)] tracking-tight">
                       {t.navCashier} — {store?.name || 'Your shop'}{' '}
                       <span className="text-sm font-mono uppercase px-2.5 py-0.5 rounded-full bg-amber-100 border border-amber-400 text-amber-950 align-middle">
                         {activeEnv}
@@ -1427,19 +1374,19 @@ export const SellerConsole: React.FC<SellerConsoleProps> = ({
                 {showPosMenuForm && (
                   <div
                     data-testid="pos-menu-form-panel"
-                    className="animate-card-in bg-[#1C2430] border border-slate-500 rounded-3xl p-5 space-y-4 shadow-2xl"
+                    className="animate-card-in bg-[var(--surface-card)] border border-slate-500 rounded-3xl p-5 space-y-4 shadow-2xl"
                   >
                     <div className="flex items-center justify-between border-b border-slate-500 pb-3">
                       <div>
-                        <h2 className="text-base font-bold text-[#DFC496] flex items-center gap-2">
-                          <Tag className="w-4 h-4 text-[#2DD4BF]" />
+                        <h2 className="text-base font-bold text-[var(--gold-ink)] flex items-center gap-2">
+                          <Tag className="w-4 h-4 text-[var(--teal-ink)]" />
                           <span>
                             {editingProdId
                               ? uiText(locale, "Edit Menu & Harga")
                               : uiText(locale, "Tambah Menu & Harga Baru")}
                           </span>
                         </h2>
-                        <p className="text-xs text-slate-300 mt-0.5">{' '}{uiText(locale, "Pilih kolom kategori (Makanan, Minuman, Dessert, Buah Segar, Bakery, Lainnya) & atur harga NIM / USDT.")}{' '}</p>
+                        <p className="text-xs text-slate-300 mt-0.5">{' '}{uiText(locale, "Pilih kategori menu dan atur harga dalam NIM.")}{' '}</p>
                       </div>
                       <button
                         type="button"
@@ -1447,7 +1394,7 @@ export const SellerConsole: React.FC<SellerConsoleProps> = ({
                           setShowPosMenuForm(false);
                           handleResetProductForm();
                         }}
-                        className="p-1.5 rounded-full bg-[#263242] text-slate-300 hover:text-[#F8FAFC] cursor-pointer"
+                        className="p-1.5 rounded-full bg-[var(--surface-raised)] text-slate-300 hover:text-[var(--ink)] cursor-pointer"
                         aria-label="Close menu form"
                       >
                         <X className="w-4 h-4" />
@@ -1465,7 +1412,7 @@ export const SellerConsole: React.FC<SellerConsoleProps> = ({
                             value={newProdName}
                             onChange={(e) => setNewProdName(e.target.value)}
                             placeholder={uiText(locale, "Contoh: Nasi Goreng Kampung / Es Kopi Krim")}
-                            className="w-full bg-[#263242] border border-slate-500 rounded-xl px-3.5 py-2 text-xs text-[#F8FAFC]"
+                            className="w-full bg-[var(--surface-raised)] border border-slate-500 rounded-xl px-3.5 py-2 text-xs text-[var(--ink)]"
                           />
                         </div>
                         <div>
@@ -1475,7 +1422,7 @@ export const SellerConsole: React.FC<SellerConsoleProps> = ({
                             onChange={(e) =>
                               setNewProdCat(e.target.value as ProductCategory)
                             }
-                            className="w-full bg-[#263242] border border-slate-500 rounded-xl px-3 py-2 text-xs text-[#F8FAFC]"
+                            className="w-full bg-[var(--surface-raised)] border border-slate-500 rounded-xl px-3 py-2 text-xs text-[var(--ink)]"
                           >
                             <option value="food">{categoryCopy('food', locale).title}</option>
                             <option value="drinks">{categoryCopy('drinks', locale).title}</option>
@@ -1489,7 +1436,7 @@ export const SellerConsole: React.FC<SellerConsoleProps> = ({
 
                       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                         <div>
-                          <label className="block text-xs font-medium text-[#DFC496] mb-1">{' '}{uiText(locale, "Harga NIM (")}{' '}{activeEnv === 'testnet' ? 'NIM TESTNET' : 'Nimiq Mainnet'})
+                          <label className="block text-xs font-medium text-[var(--gold-ink)] mb-1">{' '}{uiText(locale, "Harga NIM (")}{' '}{activeEnv === 'testnet' ? 'NIM TESTNET' : 'Nimiq Mainnet'})
                           </label>
                           <input
                             type="text"
@@ -1497,21 +1444,10 @@ export const SellerConsole: React.FC<SellerConsoleProps> = ({
                             value={newProdNim}
                             onChange={(e) => setNewProdNim(e.target.value)}
                             placeholder="45"
-                            className="w-full bg-[#263242] border border-slate-500 rounded-xl px-3.5 py-2 text-xs font-mono text-[#F8FAFC]"
+                            className="w-full bg-[var(--surface-raised)] border border-slate-500 rounded-xl px-3.5 py-2 text-xs font-mono text-[var(--ink)]"
                           />
                         </div>
-                        <div>
-                          <label className="block text-xs font-medium text-[#2DD4BF] mb-1">{' '}{uiText(locale, "Harga")}{' '}{activeEnv === 'testnet' ? 'TEST TOKEN (Amoy)' : 'USDT (Polygon)'}
-                          </label>
-                          <input
-                            type="text"
-                            data-testid="pos-menu-usdt-input"
-                            value={newProdUsdt}
-                            onChange={(e) => setNewProdUsdt(e.target.value)}
-                            placeholder="1.50"
-                            className="w-full bg-[#263242] border border-slate-500 rounded-xl px-3.5 py-2 text-xs font-mono text-[#F8FAFC]"
-                          />
-                        </div>
+
                         <div>
                           <label className="block text-xs font-medium text-slate-300 mb-1">{' '}{uiText(locale, "Deskripsi Singkat")}{' '}</label>
                           <input
@@ -1519,7 +1455,7 @@ export const SellerConsole: React.FC<SellerConsoleProps> = ({
                             value={newProdDesc}
                             onChange={(e) => setNewProdDesc(e.target.value)}
                             placeholder={uiText(locale, "Racikan spesial resto")}
-                            className="w-full bg-[#263242] border border-slate-500 rounded-xl px-3.5 py-2 text-xs text-[#F8FAFC]"
+                            className="w-full bg-[var(--surface-raised)] border border-slate-500 rounded-xl px-3.5 py-2 text-xs text-[var(--ink)]"
                           />
                         </div>
                       </div>
@@ -1529,7 +1465,7 @@ export const SellerConsole: React.FC<SellerConsoleProps> = ({
                       {prodFeedback && (
                         <div
                           role="status"
-                          className="p-2.5 rounded-xl bg-[#0F3D3E] border border-[#14B8A6]/50 text-[#2DD4BF] text-xs font-medium"
+                          className="p-2.5 rounded-xl bg-[var(--surface-selected)] border border-[#14B8A6]/50 text-[var(--teal-ink)] text-xs font-medium"
                         >
                           {prodFeedback}
                         </div>
@@ -1540,7 +1476,7 @@ export const SellerConsole: React.FC<SellerConsoleProps> = ({
                           <button
                             type="button"
                             onClick={handleResetProductForm}
-                            className="px-4 py-2 rounded-xl bg-[#263242] text-slate-300 text-xs font-medium cursor-pointer"
+                            className="px-4 py-2 rounded-xl bg-[var(--surface-raised)] text-slate-300 text-xs font-medium cursor-pointer"
                           >{' '}{uiText(locale, "Batal Edit")}{' '}</button>
                         )}
                         <button
@@ -1566,7 +1502,7 @@ export const SellerConsole: React.FC<SellerConsoleProps> = ({
                       className={`px-3.5 py-1.5 rounded-full text-xs sm:text-sm font-medium transition-all whitespace-nowrap cursor-pointer active:scale-95 ${
                         posCategory === 'all'
                           ? 'bg-[#14B8A6] text-[#071318] font-semibold shadow-md'
-                          : 'bg-[#1C2430] border border-slate-600 text-slate-300'
+                          : 'bg-[var(--surface-card)] border border-slate-600 text-slate-300'
                       }`}
                     >{' '}{uiText(locale, "Semua Kolom (")}{' '}{products.length})
                     </button>
@@ -1581,7 +1517,7 @@ export const SellerConsole: React.FC<SellerConsoleProps> = ({
                           className={`px-3.5 py-1.5 rounded-full text-xs sm:text-sm font-medium transition-all whitespace-nowrap cursor-pointer active:scale-95 ${
                             active
                               ? 'bg-[#14B8A6] text-[#071318] font-semibold shadow-md'
-                              : 'bg-[#1C2430] border border-slate-600 text-slate-300'
+                              : 'bg-[var(--surface-card)] border border-slate-600 text-slate-300'
                           }`}
                         >
                           {categoryCopy(col.id, locale).title} ({count})
@@ -1598,7 +1534,7 @@ export const SellerConsole: React.FC<SellerConsoleProps> = ({
                       placeholder={t.searchProductsPlaceholder}
                       value={posSearch}
                       onChange={(e) => setPosSearch(e.target.value)}
-                      className="w-full bg-[#1C2430] border border-slate-600 rounded-full pl-9 pr-4 py-1.5 text-xs sm:text-sm text-[#F8FAFC] placeholder:text-slate-300"
+                      className="w-full bg-[var(--surface-card)] border border-slate-600 rounded-full pl-9 pr-4 py-1.5 text-xs sm:text-sm text-[var(--ink)] placeholder:text-slate-300"
                     />
                   </div>
                 </div>
@@ -1617,21 +1553,20 @@ export const SellerConsole: React.FC<SellerConsoleProps> = ({
                       (p) => p.category === col.id
                     );
                     const nimLabel = activeEnv === 'testnet' ? 'NIM (TESTNET)' : 'NIM';
-                    const usdtLabel = activeEnv === 'testnet' ? 'TEST TOKEN' : 'USDT';
                     return (
                       <div
                         key={col.id}
                         data-testid={`pos-column-${col.id}`}
-                        className="bg-[#1C2430] border border-slate-500 rounded-3xl p-4 space-y-3.5 shadow-sm"
+                        className="bg-[var(--surface-card)] border border-slate-500 rounded-3xl p-4 space-y-3.5 shadow-sm"
                       >
                         <div className="flex items-center justify-between border-b border-[#E8DFD1] pb-2.5">
                           <div>
-                            <h2 className="text-base font-bold text-[#F8FAFC]">
+                            <h2 className="text-base font-bold text-[var(--ink)]">
                               {categoryCopy(col.id, locale).title}
                             </h2>
                             <p className="text-[13px] text-slate-300">{categoryCopy(col.id, locale).subtitle}</p>
                           </div>
-                          <span className="px-2.5 py-0.5 rounded-full bg-[#263242] border border-slate-500 text-xs font-bold text-[#DFC496] tabular-nums">
+                          <span className="px-2.5 py-0.5 rounded-full bg-[var(--surface-raised)] border border-slate-500 text-xs font-bold text-[var(--gold-ink)] tabular-nums">
                             {colProducts.length} menu
                           </span>
                         </div>
@@ -1642,20 +1577,13 @@ export const SellerConsole: React.FC<SellerConsoleProps> = ({
                         ) : (
                           <div className="space-y-3">
                             {colProducts.map((prod, idx) => {
-                              const priceBadge =
-                                posAsset === 'NIM'
-                                  ? prod.priceNimLuna
-                                    ? `${formatLunaToNim(prod.priceNimLuna)} ${nimLabel}`
-                                    : `${usdtLabel} Only`
-                                  : prod.priceUsdtMicro
-                                  ? `${formatMicroToUsdt(prod.priceUsdtMicro)} ${usdtLabel}`
-                                  : `${nimLabel} Only`;
+                              const priceBadge = prod.priceNimLuna ? `${formatLunaToNim(prod.priceNimLuna)} ${nimLabel}` : uiText(locale,'Harga NIM belum tersedia');
 
                               return (
                                 <div
                                   key={prod.id}
                                   style={{ animationDelay: `${idx * 45}ms` }}
-                                  className="group menu-card-live animate-card-in bg-[#263242] border border-slate-500 rounded-2xl p-2.5 flex items-center justify-between gap-3"
+                                  className="group menu-card-live animate-card-in bg-[var(--surface-raised)] border border-slate-500 rounded-2xl p-2.5 flex items-center justify-between gap-3"
                                 >
                                   <div className="flex items-center gap-3 min-w-0">
                                     <img
@@ -1665,18 +1593,18 @@ export const SellerConsole: React.FC<SellerConsoleProps> = ({
                                       className="w-14 h-14 rounded-xl object-cover shrink-0 transition-transform duration-500 group-hover:scale-105"
                                     />
                                     <div className="min-w-0">
-                                      <div className="text-sm font-semibold text-[#F8FAFC] truncate">
+                                      <div className="text-sm font-semibold text-[var(--ink)] truncate">
                                         {prod.name}
                                       </div>
-                                      <div className="text-xs font-bold text-[#DFC496] tabular-nums mt-0.5">
+                                      <div className="text-xs font-bold text-[var(--gold-ink)] tabular-nums mt-0.5">
                                         {priceBadge}
                                       </div>
                                       <button
                                         type="button"
                                         onClick={() => handleStartEditProduct(prod, true)}
-                                        className="mt-1 text-[13px] text-slate-300 hover:text-[#F8FAFC] inline-flex items-center gap-1 cursor-pointer"
+                                        className="mt-1 text-[13px] text-slate-300 hover:text-[var(--ink)] inline-flex items-center gap-1 cursor-pointer"
                                       >
-                                        <Pencil className="w-2.5 h-2.5 text-[#DFC496]" />
+                                        <Pencil className="w-2.5 h-2.5 text-[var(--gold-ink)]" />
                                         <span>{' '}{uiText(locale, "Edit Harga")}{' '}</span>
                                       </button>
                                     </div>
@@ -1702,9 +1630,9 @@ export const SellerConsole: React.FC<SellerConsoleProps> = ({
               </div>
 
               {/* Right 4 Columns: Cashier Order Panel */}
-              <div className="lg:col-span-4 bg-[#1C2430] border border-slate-600 rounded-3xl p-6 space-y-5 shadow-xl">
+              <div className="lg:col-span-4 bg-[var(--surface-card)] border border-slate-600 rounded-3xl p-6 space-y-5 shadow-xl">
                 <div className="flex items-center justify-between">
-                  <h2 className="text-2xl font-bold text-[#F8FAFC] tracking-tight">
+                  <h2 className="text-2xl font-bold text-[var(--ink)] tracking-tight">
                     {t.orderNumberLabel} {activeEnv === 'testnet' ? '#T-POS' : '#POS'}
                   </h2>
                   <span className="text-xs text-slate-300 font-mono">
@@ -1721,7 +1649,7 @@ export const SellerConsole: React.FC<SellerConsoleProps> = ({
                     type="text"
                     value={posTableNote}
                     onChange={(e) => setPosTableNote(e.target.value)}
-                    className="w-full bg-[#263242] border border-slate-500/80 rounded-xl px-3.5 py-2 text-xs text-slate-200"
+                    className="w-full bg-[var(--surface-raised)] border border-slate-500/80 rounded-xl px-3.5 py-2 text-xs text-slate-200"
                   />
                 </div>
 
@@ -1731,22 +1659,8 @@ export const SellerConsole: React.FC<SellerConsoleProps> = ({
                     const prod = products.find((p) => p.id === entry.productId);
                     if (!prod) return null;
                     const nimLabel = activeEnv === 'testnet' ? 'NIM (TESTNET)' : 'NIM';
-                    const usdtLabel = activeEnv === 'testnet' ? 'TEST TOKEN' : 'USDT';
-                    const unitStr =
-                      posAsset === 'NIM'
-                        ? prod.priceNimLuna
-                          ? `${formatLunaToNim(prod.priceNimLuna)} ${nimLabel} each`
-                          : `No ${nimLabel} price`
-                        : prod.priceUsdtMicro
-                        ? `${formatMicroToUsdt(prod.priceUsdtMicro)} ${usdtLabel} each`
-                        : `No ${usdtLabel} price`;
-
-                    const lineStr =
-                      posAsset === 'NIM' && prod.priceNimLuna
-                        ? `${formatLunaToNim(BigInt(prod.priceNimLuna) * BigInt(entry.quantity))} ${nimLabel}`
-                        : posAsset === 'USDT' && prod.priceUsdtMicro
-                        ? `${formatMicroToUsdt(BigInt(prod.priceUsdtMicro) * BigInt(entry.quantity))} ${usdtLabel}`
-                        : 'N/A';
+                    const unitStr = prod.priceNimLuna ? `${formatLunaToNim(prod.priceNimLuna)} ${nimLabel} each` : `No ${nimLabel} price`;
+                    const lineStr = prod.priceNimLuna ? `${formatLunaToNim(BigInt(prod.priceNimLuna) * BigInt(entry.quantity))} ${nimLabel}` : 'N/A';
 
                     return (
                       <div
@@ -1761,7 +1675,7 @@ export const SellerConsole: React.FC<SellerConsoleProps> = ({
                             className="w-11 h-11 rounded-xl object-cover shrink-0"
                           />
                           <div className="min-w-0">
-                            <div className="text-sm font-semibold text-[#F8FAFC] truncate">
+                            <div className="text-sm font-semibold text-[var(--ink)] truncate">
                               {prod.name}
                             </div>
                             <div className="text-xs text-slate-300 tabular-nums">{unitStr}</div>
@@ -1769,7 +1683,7 @@ export const SellerConsole: React.FC<SellerConsoleProps> = ({
                         </div>
 
                         <div className="flex items-center gap-2.5 shrink-0">
-                          <div className="flex items-center gap-1.5 bg-[#0B0F14] border border-slate-600 rounded-full px-2 py-1">
+                          <div className="flex items-center gap-1.5 bg-[var(--surface-base)] border border-slate-600 rounded-full px-2 py-1">
                             <button
                               type="button"
                               onClick={() => updatePosQty(prod.id, -1)}
@@ -1785,13 +1699,13 @@ export const SellerConsole: React.FC<SellerConsoleProps> = ({
                               type="button"
                               onClick={() => updatePosQty(prod.id, 1)}
                               aria-label={`Increase ${prod.name}`}
-                              className="w-5 h-5 rounded-full bg-[#0F3D3E] text-[#2DD4BF] flex items-center justify-center cursor-pointer"
+                              className="w-5 h-5 rounded-full bg-[var(--surface-selected)] text-[var(--teal-ink)] flex items-center justify-center cursor-pointer"
                             >
                               <Plus className="w-3 h-3" />
                             </button>
                           </div>
 
-                          <div className="text-xs sm:text-sm font-bold text-[#F8FAFC] tabular-nums w-24 text-right">
+                          <div className="text-xs sm:text-sm font-bold text-[var(--ink)] tabular-nums w-24 text-right">
                             {lineStr}
                           </div>
                         </div>
@@ -1803,7 +1717,7 @@ export const SellerConsole: React.FC<SellerConsoleProps> = ({
                 {/* Total */}
                 <div className="pt-3 border-t border-slate-600 flex items-baseline justify-between">
                   <span className="text-base text-slate-300">{t.totalLabel}</span>
-                  <span className="text-2xl font-bold text-[#DFC496] tabular-nums">
+                  <span className="text-2xl font-bold text-[var(--gold-ink)] tabular-nums">
                     {posCalculation.totalFormatted}
                   </span>
                 </div>
@@ -1813,46 +1727,28 @@ export const SellerConsole: React.FC<SellerConsoleProps> = ({
                   <span className="text-xs text-slate-300 block">
                     {t.paymentMethod} ({activeEnv.toUpperCase()})
                   </span>
-                  <div className="grid grid-cols-2 gap-3">
+                  <div className="grid grid-cols-1 gap-3">
                     <button
                       type="button"
                       onClick={() => setPosAsset('NIM')}
                       className={`p-3.5 rounded-2xl border text-left transition-colors cursor-pointer ${
                         posAsset === 'NIM'
-                          ? 'bg-[#0F3D3E]/70 border-[#14B8A6] text-[#F8FAFC]'
-                          : 'bg-[#0B0F14] border-slate-600 text-slate-300'
+                          ? 'bg-[var(--surface-selected)]/70 border-[#14B8A6] text-[var(--ink)]'
+                          : 'bg-[var(--surface-base)] border-slate-600 text-slate-300'
                       }`}
                     >
                       <div className="flex items-center justify-between">
                         <span className="text-xs sm:text-sm font-bold">
                           {activeEnv === 'testnet' ? 'NIM (TESTNET)' : 'NIM'}
                         </span>
-                        <span className="text-xs text-[#2DD4BF]">✓</span>
+                        <span className="text-xs text-[var(--teal-ink)]">✓</span>
                       </div>
                       <div className="text-xs text-slate-300 mt-1">
                         {activeEnv === 'testnet' ? 'Nimiq Testnet (ID 5)' : 'Nimiq Mainnet'}
                       </div>
                     </button>
 
-                    <button
-                      type="button"
-                      onClick={() => setPosAsset('USDT')}
-                      className={`p-3.5 rounded-2xl border text-left transition-colors cursor-pointer ${
-                        posAsset === 'USDT'
-                          ? 'bg-[#0F3D3E]/70 border-[#14B8A6] text-[#F8FAFC]'
-                          : 'bg-[#0B0F14] border-slate-600 text-slate-300'
-                      }`}
-                    >
-                      <div className="flex items-center justify-between">
-                        <span className="text-xs sm:text-sm font-bold">
-                          {activeEnv === 'testnet' ? 'TEST TOKEN' : 'USDT'}
-                        </span>
-                        <span className="text-xs text-[#2DD4BF]">✓</span>
-                      </div>
-                      <div className="text-xs text-slate-300 mt-1">
-                        {activeEnv === 'testnet' ? 'Polygon Amoy (80002)' : 'Polygon (137)'}
-                      </div>
-                    </button>
+
                   </div>
                 </div>
 
@@ -1897,7 +1793,7 @@ export const SellerConsole: React.FC<SellerConsoleProps> = ({
             <div className="max-w-6xl mx-auto space-y-6">
               <div className="flex flex-wrap items-center justify-between gap-4">
                 <div>
-                  <h1 className="text-2xl font-bold text-[#F8FAFC]">
+                  <h1 className="text-2xl font-bold text-[var(--ink)]">
                     {t.navOrders} —{' '}
                     <span className={activeEnv === 'testnet' ? 'text-amber-700' : 'text-emerald-700'}>
                       {activeEnv === 'testnet'
@@ -1911,7 +1807,7 @@ export const SellerConsole: React.FC<SellerConsoleProps> = ({
                 {/* High-contrast Payment Status Legend */}
                 <div
                   aria-label="Payment status color legend"
-                  className="flex flex-wrap items-center gap-2 bg-[#1C2430] border border-slate-600 rounded-2xl px-3.5 py-2"
+                  className="flex flex-wrap items-center gap-2 bg-[var(--surface-card)] border border-slate-600 rounded-2xl px-3.5 py-2"
                 >
                   <OrderStatusBadge status="unpaid" locale={locale} size="sm" />
                   <OrderStatusBadge status="pending" locale={locale} size="sm" />
@@ -1927,7 +1823,7 @@ export const SellerConsole: React.FC<SellerConsoleProps> = ({
                   .filter((ord) => {
                     const ordEnv =
                       ord.environment ||
-                      (ord.network === 'nimiq-testnet' || ord.network === 'polygon-amoy'
+                      (ord.network === 'nimiq-testnet'
                         ? 'testnet'
                         : 'mainnet');
                     return ordEnv === activeEnv;
@@ -1935,13 +1831,12 @@ export const SellerConsole: React.FC<SellerConsoleProps> = ({
                   .map((ord) => {
                     const isTestOrd =
                       ord.environment === 'testnet' ||
-                      ord.network === 'nimiq-testnet' ||
-                      ord.network === 'polygon-amoy';
+                      ord.network === 'nimiq-testnet';
                     return (
                       <div
                         key={ord.id}
                         data-testid={`seller-order-card-${ord.orderNumber}`}
-                        className="bg-[#1C2430] border border-slate-600 rounded-2xl p-5 flex flex-col lg:flex-row lg:items-center justify-between gap-4"
+                        className="bg-[var(--surface-card)] border border-slate-600 rounded-2xl p-5 flex flex-col lg:flex-row lg:items-center justify-between gap-4"
                       >
                         <div className="space-y-2 max-w-2xl">
                           <div className="flex flex-wrap items-center gap-2.5 text-xs">
@@ -1954,11 +1849,11 @@ export const SellerConsole: React.FC<SellerConsoleProps> = ({
                             >
                               {isTestOrd ? uiText(locale, "TESTNET · BUKAN PENJUALAN NYATA") : 'MAINNET · DANA ASLI'}
                             </span>
-                            <span className="text-base font-bold text-[#DFC496] tabular-nums">
+                            <span className="text-base font-bold text-[var(--gold-ink)] tabular-nums">
                               {ord.orderNumber}
                             </span>
                             <span aria-hidden="true">·</span>
-                            <span className="font-semibold text-[#F8FAFC] tabular-nums">
+                            <span className="font-semibold text-[var(--ink)] tabular-nums">
                               {ord.amountFormatted}
                             </span>
                             <span aria-hidden="true">·</span>
@@ -1981,7 +1876,7 @@ export const SellerConsole: React.FC<SellerConsoleProps> = ({
                           </div>
 
                           {ord.deliveryInfo && (
-                            <div className="text-xs text-slate-300 bg-[#0B0F14] p-2.5 rounded-xl border border-slate-600">
+                            <div className="text-xs text-slate-300 bg-[var(--surface-base)] p-2.5 rounded-xl border border-slate-600">
                               <strong className="text-slate-200">Delivery Recipient:</strong>{' '}
                               {ord.deliveryInfo.recipientName} ({ord.deliveryInfo.phone}) —{' '}
                               {ord.deliveryInfo.address}
@@ -2036,11 +1931,12 @@ export const SellerConsole: React.FC<SellerConsoleProps> = ({
                               <button
                                 key={st.id}
                                 type="button"
+                                disabled={!isActiveNimOrder(ord)}
                                 onClick={() => handleUpdateFulfillment(ord.id, st.id)}
                                 className={`px-2.5 py-1 rounded-lg text-xs font-medium transition-colors cursor-pointer ${
                                   ord.fulfillmentStatus === st.id
                                     ? 'bg-[#14B8A6] text-[#071318] font-semibold'
-                                    : 'bg-[#0B0F14] border border-slate-600 text-slate-300 hover:text-white'
+                                    : 'bg-[var(--surface-base)] border border-slate-600 text-slate-300 hover:text-white'
                                 }`}
                               >
                                 {st.label}
@@ -2054,9 +1950,9 @@ export const SellerConsole: React.FC<SellerConsoleProps> = ({
                               onClick={() =>
                                 store && onOpenOrderCheckout(store.slug, ord.publicToken)
                               }
-                              className="text-xs text-[#2DD4BF] hover:underline flex items-center gap-1 cursor-pointer"
+                              className="text-xs text-[var(--teal-ink)] hover:underline flex items-center gap-1 cursor-pointer"
                             >
-                              <span>Open QR / Checkout ({ord.network})</span>
+                              <span>{isActiveNimOrder(ord) ? `Open QR / Checkout (${ord.network})` : uiText(locale,'Arsip pesanan — hanya baca')}</span>
                               <ExternalLink className="w-3 h-3" />
                             </button>
                           </div>
@@ -2073,22 +1969,22 @@ export const SellerConsole: React.FC<SellerConsoleProps> = ({
           ================================================================== */}
           {currentTab === 'products' && (
             <div className="relative z-10 max-w-5xl mx-auto grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
-              <div className="lg:col-span-5 bg-[#1C2430] border border-slate-600 rounded-2xl p-6 space-y-4">
+              <div className="lg:col-span-5 bg-[var(--surface-card)] border border-slate-600 rounded-2xl p-6 space-y-4">
                 <div className="flex items-center justify-between">
-                  <h2 className="text-lg font-bold text-[#F8FAFC]">
+                  <h2 className="text-lg font-bold text-[var(--ink)]">
                     {editingProdId ? uiText(locale, "Edit Menu & Harga") : uiText(locale, "Tambah Menu & Harga Baru")}
                   </h2>
                   {editingProdId && (
                     <button
                       type="button"
                       onClick={handleResetProductForm}
-                      className="text-xs text-slate-300 hover:text-[#F8FAFC] underline cursor-pointer"
+                      className="text-xs text-slate-300 hover:text-[var(--ink)] underline cursor-pointer"
                     >
                       Reset
                     </button>
                   )}
                 </div>
-                <p className="text-xs text-slate-300">{' '}{uiText(locale, "Atur harga manual dalam NIM dan/atau Polygon USDT (di Testnet ditampilkan sebagai NIM TESTNET & TEST TOKEN). NimTera tidak pernah melakukan konversi kurs otomatis.")}{' '}</p>
+                <p className="text-xs text-slate-300">{' '}{uiText(locale, "Atur harga menu dalam NIM. Tidak ada konversi kurs otomatis.")}{' '}</p>
 
                 <form onSubmit={handleCreateProduct} className="space-y-3.5">
                   <div>
@@ -2099,7 +1995,7 @@ export const SellerConsole: React.FC<SellerConsoleProps> = ({
                       value={newProdName}
                       onChange={(e) => setNewProdName(e.target.value)}
                       placeholder="Cardamom Cold Brew"
-                      className="w-full bg-[#263242] border border-slate-500 rounded-xl px-3 py-2 text-xs text-[#F8FAFC]"
+                      className="w-full bg-[var(--surface-raised)] border border-slate-500 rounded-xl px-3 py-2 text-xs text-[var(--ink)]"
                     />
                   </div>
                   <div>
@@ -2109,7 +2005,7 @@ export const SellerConsole: React.FC<SellerConsoleProps> = ({
                       value={newProdDesc}
                       onChange={(e) => setNewProdDesc(e.target.value)}
                       placeholder="Spiced night market signature coffee"
-                      className="w-full bg-[#263242] border border-slate-500 rounded-xl px-3 py-2 text-xs text-[#F8FAFC]"
+                      className="w-full bg-[var(--surface-raised)] border border-slate-500 rounded-xl px-3 py-2 text-xs text-[var(--ink)]"
                     />
                   </div>
                   <div>
@@ -2119,7 +2015,7 @@ export const SellerConsole: React.FC<SellerConsoleProps> = ({
                       onChange={(e) =>
                         setNewProdCat(e.target.value as ProductCategory)
                       }
-                      className="w-full bg-[#263242] border border-slate-500 rounded-xl px-3 py-2 text-xs text-[#F8FAFC]"
+                      className="w-full bg-[var(--surface-raised)] border border-slate-500 rounded-xl px-3 py-2 text-xs text-[var(--ink)]"
                     >
                       <option value="food">{categoryCopy('food', locale).title}</option>
                       <option value="drinks">{categoryCopy('drinks', locale).title}</option>
@@ -2129,33 +2025,24 @@ export const SellerConsole: React.FC<SellerConsoleProps> = ({
                       <option value="goods">{categoryCopy('goods', locale).title}</option>
                     </select>
                   </div>
-                  <div className="grid grid-cols-2 gap-3">
+                  <div className="grid grid-cols-1 gap-3">
                     <div>
-                      <label className="block text-xs text-[#DFC496] font-medium mb-1">{' '}{uiText(locale, "Harga NIM (opsional)")}{' '}</label>
+                      <label className="block text-xs text-[var(--gold-ink)] font-medium mb-1">{' '}{uiText(locale, "Harga NIM")}{' '}</label>
                       <input
                         type="text"
                         value={newProdNim}
                         onChange={(e) => setNewProdNim(e.target.value)}
                         placeholder="40"
-                        className="w-full bg-[#263242] border border-slate-500 rounded-xl px-3 py-2 text-xs font-mono text-[#F8FAFC]"
+                        className="w-full bg-[var(--surface-raised)] border border-slate-500 rounded-xl px-3 py-2 text-xs font-mono text-[var(--ink)]"
                       />
                     </div>
-                    <div>
-                      <label className="block text-xs text-[#2DD4BF] font-medium mb-1">{' '}{uiText(locale, "Harga USDT / TEST TOKEN (opsional)")}{' '}</label>
-                      <input
-                        type="text"
-                        value={newProdUsdt}
-                        onChange={(e) => setNewProdUsdt(e.target.value)}
-                        placeholder="1.20"
-                        className="w-full bg-[#263242] border border-slate-500 rounded-xl px-3 py-2 text-xs font-mono text-[#F8FAFC]"
-                      />
-                    </div>
+
                   </div>
 
                   <ProductImagePicker value={newProdImg} onChange={setNewProdImg} locale={locale} token={sessionToken} onBusyChange={setPhotoBusy} />
 
                   {prodFeedback && (
-                    <div className="p-2.5 rounded-xl bg-[#0F3D3E] text-[#2DD4BF] text-xs">
+                    <div className="p-2.5 rounded-xl bg-[var(--surface-selected)] text-[var(--teal-ink)] text-xs">
                       {prodFeedback}
                     </div>
                   )}
@@ -2172,21 +2059,21 @@ export const SellerConsole: React.FC<SellerConsoleProps> = ({
               </div>
 
               <div className="lg:col-span-7 space-y-5">
-                <h2 className="text-lg font-bold text-[#F8FAFC]">{' '}{uiText(locale, "Katalog Menu & Harga per Kolom (")}{' '}{products.length})
+                <h2 className="text-lg font-bold text-[var(--ink)]">{' '}{uiText(locale, "Katalog Menu & Harga per Kolom (")}{' '}{products.length})
                 </h2>
                 {MENU_CATEGORY_COLUMNS.map((col) => {
                   const colProds = products.filter((p) => p.category === col.id);
                   return (
                     <div
                       key={col.id}
-                      className="bg-[#1C2430] border border-slate-500 rounded-2xl p-4 space-y-3"
+                      className="bg-[var(--surface-card)] border border-slate-500 rounded-2xl p-4 space-y-3"
                     >
                       <div className="flex items-center justify-between border-b border-[#E8DFD1] pb-2">
                         <div>
-                          <h3 className="text-sm font-bold text-[#F8FAFC]">{categoryCopy(col.id, locale).title}</h3>
+                          <h3 className="text-sm font-bold text-[var(--ink)]">{categoryCopy(col.id, locale).title}</h3>
                           <p className="text-[13px] text-slate-300">{categoryCopy(col.id, locale).subtitle}</p>
                         </div>
-                        <span className="px-2.5 py-0.5 rounded-full bg-[#263242] text-xs font-bold text-[#DFC496]">
+                        <span className="px-2.5 py-0.5 rounded-full bg-[var(--surface-raised)] text-xs font-bold text-[var(--gold-ink)]">
                           {colProds.length} menu
                         </span>
                       </div>
@@ -2198,7 +2085,7 @@ export const SellerConsole: React.FC<SellerConsoleProps> = ({
                         colProds.map((prod) => (
                           <div
                             key={prod.id}
-                            className="menu-card-live bg-[#263242] border border-slate-600 rounded-2xl p-3.5 flex flex-wrap sm:flex-nowrap items-center justify-between gap-4"
+                            className="menu-card-live bg-[var(--surface-raised)] border border-slate-600 rounded-2xl p-3.5 flex flex-wrap sm:flex-nowrap items-center justify-between gap-4"
                           >
                             <div className="flex items-center gap-3.5 min-w-0">
                               <img
@@ -2208,23 +2095,17 @@ export const SellerConsole: React.FC<SellerConsoleProps> = ({
                                 className="w-12 h-12 rounded-xl object-cover shrink-0"
                               />
                               <div className="min-w-0">
-                                <div className="text-sm font-semibold text-[#F8FAFC] truncate">
+                                <div className="text-sm font-semibold text-[var(--ink)] truncate">
                                   {prod.name}
                                 </div>
-                                <div className="text-xs text-[#DFC496] font-medium tabular-nums">
+                                <div className="text-xs text-[var(--gold-ink)] font-medium tabular-nums">
                                   {prod.priceNimLuna
                                     ? `${formatLunaToNim(prod.priceNimLuna)} ${
                                         activeEnv === 'testnet' ? 'NIM (TESTNET)' : 'NIM'
                                       }`
                                     : 'No NIM'}
                                   {' · '}
-                                  <span className="text-[#2DD4BF]">
-                                    {prod.priceUsdtMicro
-                                      ? `${formatMicroToUsdt(prod.priceUsdtMicro)} ${
-                                          activeEnv === 'testnet' ? 'TEST TOKEN' : 'USDT'
-                                        }`
-                                      : 'No USDT'}
-                                  </span>
+
                                 </div>
                               </div>
                             </div>
@@ -2233,9 +2114,9 @@ export const SellerConsole: React.FC<SellerConsoleProps> = ({
                               <button
                                 type="button"
                                 onClick={() => handleStartEditProduct(prod, false)}
-                                className="px-3 py-1.5 rounded-xl bg-[#1C2430] border border-slate-500 text-[#F8FAFC] text-xs font-medium inline-flex items-center gap-1.5 cursor-pointer"
+                                className="px-3 py-1.5 rounded-xl bg-[var(--surface-card)] border border-slate-500 text-[var(--ink)] text-xs font-medium inline-flex items-center gap-1.5 cursor-pointer"
                               >
-                                <Pencil className="w-3.5 h-3.5 text-[#DFC496]" />
+                                <Pencil className="w-3.5 h-3.5 text-[var(--gold-ink)]" />
                                 <span>{' '}{uiText(locale, "Edit Harga")}{' '}</span>
                               </button>
 
@@ -2279,13 +2160,13 @@ export const SellerConsole: React.FC<SellerConsoleProps> = ({
             <div className="max-w-5xl mx-auto space-y-8">
               <div className="flex flex-wrap items-center justify-between gap-4">
                 <div>
-                  <h1 className="text-2xl font-bold text-[#F8FAFC]">{t.navReports}</h1>
+                  <h1 className="text-2xl font-bold text-[var(--ink)]">{t.navReports}</h1>
                   <p className="text-xs text-slate-300 mt-0.5">
                     {t.noCombinedTotalNote}{' '}{uiText(locale, "· Laporan Testnet dipisahkan ketat dari penjualan nyata Mainnet.")}{' '}</p>
                 </div>
 
                 <div className="flex items-center gap-2">
-                  <div className="flex items-center gap-1 bg-[#1C2430] border border-slate-600 rounded-xl p-1 text-xs">
+                  <div className="flex items-center gap-1 bg-[var(--surface-card)] border border-slate-600 rounded-xl p-1 text-xs">
                     {(['all', 'today', '7d'] as const).map((range) => (
                       <button
                         key={range}
@@ -2293,7 +2174,7 @@ export const SellerConsole: React.FC<SellerConsoleProps> = ({
                         onClick={() => setReportDateFilter(range)}
                         className={`px-2.5 py-1 rounded-lg font-medium cursor-pointer ${
                           reportDateFilter === range
-                            ? 'bg-[#263242] text-[#DFC496]'
+                            ? 'bg-[var(--surface-raised)] text-[var(--gold-ink)]'
                             : 'text-slate-300'
                         }`}
                       >
@@ -2317,34 +2198,25 @@ export const SellerConsole: React.FC<SellerConsoleProps> = ({
               <div className="space-y-3">
                 <div className="flex items-center gap-2">
                   <span className="px-2.5 py-0.5 rounded-full bg-emerald-900 text-emerald-100 text-[13px] font-extrabold uppercase">{' '}{uiText(locale, "MAINNET · PENJUALAN NYATA (DANA ASLI)")}{' '}</span>
-                  <span className="text-xs text-slate-300">{' '}{uiText(locale, "Hanya menghitung pesanan Mainnet terverifikasi RPC (Nimiq Mainnet & Polygon Chain 137)")}{' '}</span>
+                  <span className="text-xs text-slate-300">{' '}{uiText(locale, "Riwayat pembayaran NIM Mainnet terverifikasi. Pembayaran baru tetap dinonaktifkan.")}{' '}</span>
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
-                  <div className="bg-[#1C2430] border border-slate-600 rounded-2xl p-5 space-y-1">
+                  <div className="bg-[var(--surface-card)] border border-slate-600 rounded-2xl p-5 space-y-1">
                     <div className="text-xs text-slate-300">{t.reportsNimTotal} (Mainnet)</div>
                     <div
                       data-testid="report-nim-total"
-                      className="text-2xl font-bold text-[#DFC496] tabular-nums"
+                      className="text-2xl font-bold text-[var(--gold-ink)] tabular-nums"
                     >
                       {metrics?.confirmedNimFormatted || '0 NIM'}
                     </div>
                     <div className="text-[13px] text-slate-300">Nimiq Mainnet (Direct to wallet)</div>
                   </div>
 
-                  <div className="bg-[#1C2430] border border-slate-600 rounded-2xl p-5 space-y-1">
-                    <div className="text-xs text-slate-300">{t.reportsUsdtTotal} (Mainnet)</div>
-                    <div
-                      data-testid="report-usdt-total"
-                      className="text-2xl font-bold text-[#2DD4BF] tabular-nums"
-                    >
-                      {metrics?.confirmedUsdtFormatted || '0.00 USDT'}
-                    </div>
-                    <div className="text-[13px] text-slate-300">Polygon Mainnet (Chain ID 137)</div>
-                  </div>
 
-                  <div className="bg-[#1C2430] border border-slate-600 rounded-2xl p-5 space-y-1">
+
+                  <div className="bg-[var(--surface-card)] border border-slate-600 rounded-2xl p-5 space-y-1">
                     <div className="text-xs text-slate-300">{t.reportsOrderCount} (Mainnet)</div>
-                    <div className="text-2xl font-bold text-[#F8FAFC] tabular-nums">
+                    <div className="text-2xl font-bold text-[var(--ink)] tabular-nums">
                       {metrics?.confirmedOrdersCount ?? 0} / {metrics?.totalOrdersCount ?? 0}
                     </div>
                     <div className="text-[13px] text-slate-300">Verified Mainnet settlements</div>
@@ -2356,7 +2228,7 @@ export const SellerConsole: React.FC<SellerConsoleProps> = ({
               <div className="space-y-3">
                 <div className="flex items-center gap-2">
                   <span className="px-2.5 py-0.5 rounded-full bg-amber-900 text-amber-100 text-[13px] font-extrabold uppercase">{' '}{uiText(locale, "TESTNET · PENGUJIAN SANDBOX (BUKAN PENJUALAN NYATA)")}{' '}</span>
-                  <span className="text-xs text-slate-300">{' '}{uiText(locale, "Nimiq Testnet & Polygon Amoy (Chain ID 80002 · TEST TOKEN) — Tidak pernah digabung ke omzet nyata")}{' '}</span>
+                  <span className="text-xs text-slate-300">{' '}{uiText(locale, "Nimiq Testnet — bukan dana asli dan tidak digabung ke omzet nyata")}{' '}</span>
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
                   <div className="bg-amber-50/90 border border-amber-300 rounded-2xl p-5 space-y-1">
@@ -2372,20 +2244,7 @@ export const SellerConsole: React.FC<SellerConsoleProps> = ({
                     </div>
                   </div>
 
-                  <div className="bg-amber-50/90 border border-amber-300 rounded-2xl p-5 space-y-1">
-                    <div className="text-xs text-amber-900 font-semibold">
-                      Total TEST TOKEN (Polygon Amoy 80002)
-                    </div>
-                    <div
-                      data-testid="report-testnet-token-total"
-                      className="text-2xl font-bold text-amber-950 tabular-nums"
-                    >
-                      {testnetMetrics?.confirmedTestTokenFormatted || '0.00 TEST TOKEN'}
-                    </div>
-                    <div className="text-[13px] text-amber-800">
-                      Polygon Amoy (Chain ID 80002) · Bukan USDT Asli
-                    </div>
-                  </div>
+
 
                   <div className="bg-amber-50/90 border border-amber-300 rounded-2xl p-5 space-y-1">
                     <div className="text-xs text-amber-900 font-semibold">{' '}{uiText(locale, "Pesanan Testnet Terverifikasi")}{' '}</div>
@@ -2402,15 +2261,15 @@ export const SellerConsole: React.FC<SellerConsoleProps> = ({
               </div>
 
               {/* Immutable Security & Wallet Audit Log */}
-              <div className="bg-[#1C2430] border border-slate-600 rounded-2xl p-6 space-y-4">
-                <h2 className="text-base font-bold text-[#F8FAFC]">
+              <div className="bg-[var(--surface-card)] border border-slate-600 rounded-2xl p-6 space-y-4">
+                <h2 className="text-base font-bold text-[var(--ink)]">
                   Security & Wallet Audit Log ({auditLogs.length})
                 </h2>
                 <div className="divide-y divide-slate-800/80 text-xs">
                   {auditLogs.map((log) => (
                     <div key={log.id} className="py-3 first:pt-0 space-y-1">
                       <div className="flex items-center justify-between">
-                        <span className="font-mono font-semibold text-[#DFC496]">{log.action}</span>
+                        <span className="font-mono font-semibold text-[var(--gold-ink)]">{log.action}</span>
                         <span className="text-slate-300 tabular-nums">
                           {new Date(log.createdAt).toLocaleString()}
                         </span>
@@ -2422,7 +2281,7 @@ export const SellerConsole: React.FC<SellerConsoleProps> = ({
                         </div>
                       )}
                       {log.newValue && (
-                        <div className="font-mono text-[13px] text-[#2DD4BF]">
+                        <div className="font-mono text-[13px] text-[var(--teal-ink)]">
                           Updated: {log.newValue}
                         </div>
                       )}
@@ -2441,9 +2300,9 @@ export const SellerConsole: React.FC<SellerConsoleProps> = ({
               <SecuritySettings locale={locale} token={sessionToken} onEnabled={()=>setMfaEnabled(true)} />
               {store && <StoreLogoSettings logo={store.logoUrl} name={store.name} locale={locale} token={sessionToken} onSaved={setStore} />}
               {/* Left 7 Columns: Separated Testnet & Mainnet Wallet Profiles with Re-Auth + 2FA */}
-              <div className="lg:col-span-7 bg-[#1C2430] border border-slate-600 rounded-2xl p-6 space-y-5">
+              <div className="lg:col-span-7 bg-[var(--surface-card)] border border-slate-600 rounded-2xl p-6 space-y-5">
                 <div>
-                  <h2 className="text-lg font-bold text-[#F8FAFC]">{t.walletSettingsTitle}</h2>
+                  <h2 className="text-lg font-bold text-[var(--ink)]">{t.walletSettingsTitle}</h2>
                   <p className="text-xs text-slate-300 mt-0.5">{' '}{uiText(locale, "Profil wallet penerima disimpan terpisah untuk")}{' '}<strong>TESTNET</strong>{' '}{uiText(locale, "dan")}{' '}{' '}
                     <strong>MAINNET</strong>{' '}{uiText(locale, ". Setiap pesanan mengunci alamat penerima saat dibuat.")}{' '}</p>
                 </div>
@@ -2454,7 +2313,7 @@ export const SellerConsole: React.FC<SellerConsoleProps> = ({
                     <div className="flex items-center justify-between">
                       <span className="text-xs font-extrabold uppercase tracking-wider px-2.5 py-0.5 rounded-full bg-amber-900 text-amber-100">{' '}{uiText(locale, "1. Profil Wallet TESTNET (Default Pengujian)")}{' '}</span>
                       <span className="text-[13px] font-mono text-amber-900">
-                        Nimiq Testnet & Amoy 80002
+                        Nimiq Testnet
                       </span>
                     </div>
 
@@ -2474,38 +2333,9 @@ export const SellerConsole: React.FC<SellerConsoleProps> = ({
                       />
                     </div>
 
-                    <div>
-                      <label
-                        htmlFor="settings-testnet-poly-wallet"
-                        className="block text-xs font-semibold text-amber-950 mb-1"
-                      >
-                        Polygon Amoy Testnet Recipient Address (0x... Chain ID 80002)
-                      </label>
-                      <input
-                        id="settings-testnet-poly-wallet"
-                        type="text"
-                        value={walletTestnetPolyInput}
-                        onChange={(e) => setWalletTestnetPolyInput(e.target.value)}
-                        className="w-full bg-white border border-amber-400 rounded-xl px-3.5 py-2 text-xs font-mono text-stone-900"
-                      />
-                    </div>
 
-                    <div>
-                      <label
-                        htmlFor="settings-amoy-token-contract"
-                        className="block text-xs font-semibold text-amber-950 mb-1"
-                      >{' '}{uiText(locale, "Kontrak ERC-20 TEST TOKEN di Polygon Amoy (Chain ID 80002 — Opsional)")}{' '}</label>
-                      <input
-                        id="settings-amoy-token-contract"
-                        type="text"
-                        value={walletAmoyTokenContractInput}
-                        onChange={(e) => setWalletAmoyTokenContractInput(e.target.value)}
-                        placeholder={uiText(locale, "Kosongkan jika belum ada kontrak TEST TOKEN di Amoy")}
-                        className="w-full bg-white border border-amber-400 rounded-xl px-3.5 py-2 text-xs font-mono text-stone-900"
-                      />
-                      <p className="text-[13px] text-amber-900 mt-1 leading-relaxed">
-                        <strong>{' '}{uiText(locale, "Larangan Keamanan:")}{' '}</strong>{' '}{uiText(locale, "Alamat kontrak USDT Mainnet (")}{' '}<code>{POLYGON_USDT_CONTRACT}</code>{' '}{uiText(locale, ") tidak dapat digunakan di Amoy. Simpan kontrak token uji Amoy yang valid sebelum mengaktifkan pembayaran token.")}{' '}</p>
-                    </div>
+
+
                   </div>
 
                   {/* PROFIL WALLET MAINNET */}
@@ -2515,7 +2345,7 @@ export const SellerConsole: React.FC<SellerConsoleProps> = ({
                         2. Profil Wallet MAINNET (Dana Asli Produksi)
                       </span>
                       <span className="text-[13px] font-mono text-emerald-900">
-                        Nimiq Mainnet & Polygon 137
+                        Nimiq Mainnet (disabled)
                       </span>
                     </div>
 
@@ -2535,25 +2365,11 @@ export const SellerConsole: React.FC<SellerConsoleProps> = ({
                       />
                     </div>
 
-                    <div>
-                      <label
-                        htmlFor="settings-poly-wallet"
-                        className="block text-xs font-semibold text-emerald-950 mb-1"
-                      >{' '}{uiText(locale, "Polygon Mainnet USDT Recipient Address (0x... Chain ID 137 · Kontrak")}{' '}{' '}
-                        {POLYGON_USDT_CONTRACT.slice(0, 8)}...)
-                      </label>
-                      <input
-                        id="settings-poly-wallet"
-                        type="text"
-                        value={walletPolyInput}
-                        onChange={(e) => setWalletPolyInput(e.target.value)}
-                        className="w-full bg-white border border-emerald-400 rounded-xl px-3.5 py-2 text-xs font-mono text-stone-900"
-                      />
-                    </div>
+
                   </div>
 
-                  <div className="p-4 rounded-xl bg-[#0B0F14] border border-slate-600 space-y-3">
-                    <div className="text-xs font-semibold text-[#DFC496]">
+                  <div className="p-4 rounded-xl bg-[var(--surface-base)] border border-slate-600 space-y-3">
+                    <div className="text-xs font-semibold text-[var(--gold-ink)]">
                       Re-Authentication Required for Wallet Changes
                     </div>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -2567,7 +2383,7 @@ export const SellerConsole: React.FC<SellerConsoleProps> = ({
                           value={walletConfirmPass}
                           onChange={(e) => setWalletConfirmPass(e.target.value)}
                           placeholder="Enter current password"
-                          className="w-full bg-[#1C2430] border border-slate-500 rounded-lg px-3 py-1.5 text-xs text-[#F8FAFC]"
+                          className="w-full bg-[var(--surface-card)] border border-slate-500 rounded-lg px-3 py-1.5 text-xs text-[var(--ink)]"
                         />
                       </div>
                       {mfaEnabled && (                      <div>
@@ -2580,7 +2396,7 @@ export const SellerConsole: React.FC<SellerConsoleProps> = ({
                           value={walletConfirmTotp}
                           onChange={(e) => setWalletConfirmTotp(e.target.value)}
                           placeholder="6-digit TOTP"
-                          className="w-full bg-[#1C2430] border border-slate-500 rounded-lg px-3 py-1.5 text-xs font-mono text-[#F8FAFC]"
+                          className="w-full bg-[var(--surface-card)] border border-slate-500 rounded-lg px-3 py-1.5 text-xs font-mono text-[var(--ink)]"
                         />
                       </div>)}
                     </div>
@@ -2609,15 +2425,15 @@ export const SellerConsole: React.FC<SellerConsoleProps> = ({
               {/* Right 5 Columns: Mainnet Readiness Verification + Cashier Audio */}
               <div className="lg:col-span-5 space-y-6">
                 {/* Mainnet Pre-Production Readiness Check Card */}
-                <div className="bg-[#1C2430] border border-slate-600 rounded-2xl p-6 space-y-4">
+                <div className="bg-[var(--surface-card)] border border-slate-600 rounded-2xl p-6 space-y-4">
                   <div className="flex items-center justify-between">
-                    <h2 className="text-base font-bold text-[#F8FAFC] flex items-center gap-2">
-                      <ShieldCheck className="w-4 h-4 text-[#14B8A6]" />
+                    <h2 className="text-base font-bold text-[var(--ink)] flex items-center gap-2">
+                      <ShieldCheck className="w-4 h-4 text-[var(--teal-ink)]" />
                       <span>{' '}{uiText(locale, "Pemeriksaan Kesiapan Produksi Mainnet")}{' '}</span>
                     </h2>
                   </div>
                   <p className="text-xs text-slate-300 leading-relaxed">{' '}{uiText(locale, "Sebelum produksi Mainnet, jalankan pemeriksaan konfigurasi dan uji Mainnet nominal kecil yang disetujui pengguna. Keberhasilan Testnet")}{' '}{' '}
-                    <strong>{' '}{uiText(locale, "tidak")}{' '}</strong>{' '}{uiText(locale, "membuktikan jalur USDT Mainnet, fee, atau relayer pasti identik.")}{' '}</p>
+                    <strong>{' '}{uiText(locale, "tidak")}{' '}</strong>{' '}{uiText(locale, "membuktikan kesiapan pembayaran Mainnet.")}{' '}</p>
 
                   <button
                     type="button"
@@ -2629,7 +2445,7 @@ export const SellerConsole: React.FC<SellerConsoleProps> = ({
                   {mainnetReadiness && (
                     <div
                       data-testid="mainnet-readiness-result"
-                      className="p-3.5 rounded-xl bg-[#0B0F14] border border-slate-600 text-xs space-y-2"
+                      className="p-3.5 rounded-xl bg-[var(--surface-base)] border border-slate-600 text-xs space-y-2"
                     >
                       <div className="flex items-center justify-between font-bold">
                         <span>{' '}{uiText(locale, "Status Kesiapan Mainnet:")}{' '}</span>

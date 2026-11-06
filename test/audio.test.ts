@@ -20,7 +20,7 @@ function browser(){
 test('six-language speech is status plus exact amount only, without test/preview prefixes',()=>{
  for(const locale of Object.keys(LOCALE_METADATA) as SupportedLocale[]){const phrase=paymentSpeech('confirmed','[TESTNET] 110.50000 NIM (TESTNET)',locale,true);assert.doesNotMatch(phrase,/TESTNET|#T01|110\.50000/);assert.match(phrase,locale==='id'?/seratus sepuluh/:/110/);assert.match(phrase,/nim/i);}
  assert.equal(paymentSpeech('confirmed','0.00001 NIM','id'),'Pembayaran diterima, nol koma nol nol nol nol satu nim.');
- assert.equal(paymentSpeech('confirmed','2.00 TEST TOKEN','en',true),'Payment received, 2 test tokens.');
+ assert.equal(paymentSpeech('confirmed','2.00 NIM (TESTNET)','en',true),'Payment received, 2 NIM.');
 });
 test('Indonesian amounts are clear words, including 1000 NIM and precise decimals',()=>{
  assert.equal(paymentSpeech('confirmed','1000 NIM (TESTNET)','id'),'Pembayaran diterima, seribu nim.');

@@ -6,7 +6,7 @@ test('homepage explains seller/customer steps in six languages and plays the loc
  for(const [locale,heading] of Object.entries(headings)){await page.locator('#landing-language').selectOption(locale);await expect(guide.getByRole('heading',{level:2})).toContainText(heading);await expect(page.locator('html')).toHaveAttribute('lang',locale);}
  await page.locator('#landing-language').selectOption('id');await page.reload();await expect(page.locator('#landing-language')).toHaveValue('id');
  const video=page.getByTestId('homepage-intro-video');await expect(video).toHaveAttribute('preload','none');await expect(video).toHaveAttribute('controls','');await expect(video).not.toHaveAttribute('autoplay','');
- await expect(video.locator('source')).toHaveAttribute('src','/media/nimtera-intro-en.mp4');await expect(video.locator('track')).toHaveAttribute('srclang','en');await expect(guide.locator('article').nth(1)).toContainText('layar kasir toko/restoran');
+ await expect(video.locator('source')).toHaveAttribute('src','/media/nimtera-intro-nim-en.mp4');await expect(video.locator('track')).toHaveAttribute('srclang','en');await expect(guide.locator('article').nth(1)).toContainText('layar kasir toko/restoran');
  await video.scrollIntoViewIfNeeded();
  const metadata=await video.evaluate(async element=>{const video=element as HTMLVideoElement;await video.play();return {duration:video.duration,width:video.videoWidth,height:video.videoHeight};});
  expect(metadata.duration).toBeCloseTo(20,1);expect(metadata.width).toBe(1280);expect(metadata.height).toBe(720);await expect.poll(()=>video.evaluate(element=>(element as HTMLVideoElement).currentTime)).toBeGreaterThan(0);await video.evaluate(element=>(element as HTMLVideoElement).pause());

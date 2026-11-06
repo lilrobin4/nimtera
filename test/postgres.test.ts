@@ -173,3 +173,33 @@ test('durable session restoration prunes expired sessions without dropping valid
     assert.deepEqual(await transaction(f.pool,async state=>Array.from(state.sessions.keys())),['valid']);
   } finally { await f.db.close(); }
 });
+
+test('NIM-only upgrade preserves legacy SQL history and wallets while retiring every write/payment route', async () => {
+  process.env.NODE_ENV='test';process.env.SESSION_SECRET='fixture-cloud-secret-'.repeat(5);
+  const {createApp}=await import('../server');const {createValidNimiqAddress}=await import('../src/lib/domain');const {createServer}=await import('node:http');
+  const f=await fixture(),app=await createApp({apiOnly:true});
+  const http=createServer((req,res)=>{void serveDurableRequest(req,res,app,f.pool);});http.listen(0,'127.0.0.1');await once(http,'listening');
+  const base=`http://127.0.0.1:${(http.address() as any).port}`;
+  const nativeFetch=globalThis.fetch;let rpcCalls=0;
+  globalThis.fetch=async (url,options)=>{if(!String(url).startsWith(base)){rpcCalls++;throw new Error('No legacy RPC allowed');}return nativeFetch(url,options);};
+  const req=async(path:string,body?:unknown,token?:string,method?:string)=>{const response=await fetch(base+path,{method:method||(body?'POST':'GET'),headers:{'Content-Type':'application/json',...(token?{Authorization:`Bearer ${token}`}:{})},...(body?{body:JSON.stringify(body)}:{})});return {status:response.status,body:await response.json()};};
+  try {
+    const password='Fixture#ArchivedHistory!2026',recipient=createValidNimiqAddress('00000000000000000000000000000000');
+    const registered=await req('/api/auth/register',{email:'archive@example.test',password,storeName:'Archive shop',storeSlug:'archive-shop',nimiqAddress:recipient});assert.equal(registered.status,201);const token=registered.body.token;
+    const legacy={id:'legacy-order',publicToken:'legacy-public-token',orderNumber:'#T-OLD',storeSlug:'archive-shop',storeName:'Archive shop',environment:'testnet',asset:'USDT',network:'polygon-amoy',snapshotRecipient:'0x'+'1'.repeat(40),snapshotTokenContract:'0x'+'2'.repeat(40),snapshotChainId:80002,amountBase:'2000000',amountFormatted:'2.00 TEST TOKEN',items:[],paymentStatus:'pending',fulfillmentStatus:'new',txHash:'0x'+'a'.repeat(64),createdAt:new Date().toISOString(),expiresAt:new Date(Date.now()+900000).toISOString()};
+    await transaction(f.pool,async state=>{Object.assign(state.database.stores[0],{polygonAddress:'original-mainnet-wallet',polygonAmoyAddress:legacy.snapshotRecipient,polygonAmoyTestTokenContract:legacy.snapshotTokenContract});state.database.products.push({id:'old-product',storeSlug:'archive-shop',name:'Original item',description:'',category:'food',available:true,imageUrl:'/products/burger.jpg',priceNimLuna:'100000',priceUsdtMicro:'2000000'});state.database.orders.push(legacy,{...legacy,id:'old-confirmed',publicToken:'old-confirmed-token',paymentStatus:'confirmed'});});
+    const original=(await f.state()).database;
+    assert.equal((await req('/api/public/orders/legacy-public-token')).body.order.amountFormatted,'2.00 TEST TOKEN');
+    assert.equal((await req('/api/public/orders/legacy-public-token/verify',{txHash:'a'.repeat(64),asset:'NIM'})).status,410);
+    assert.equal((await req('/api/public/orders/legacy-public-token/intent',{sender:'retired',signature:'retired'})).status,404);
+    assert.equal((await req('/api/seller/orders/legacy-order/fulfillment',{fulfillmentStatus:'completed'},token,'PATCH')).status,410);
+    for(const key of ['polygonAddress','polygonAmoyAddress','polygonAmoyTestTokenContract','priceUsdtMicro'])assert.equal((await req('/api/seller/wallets',{currentPassword:password,[key]:null},token,'PUT')).status,400);
+    assert.equal((await req('/api/seller/wallets',{currentPassword:password,nimiqTestnetAddress:recipient,storeName:'NIM shop'},token,'PUT')).status,200);
+    assert.equal((await req('/api/seller/products/old-product',{name:'NIM item',priceNimLuna:'200000'},token,'PUT')).status,200);
+    const dashboard=await req('/api/seller/dashboard',undefined,token);assert.equal(dashboard.body.testnetMetrics.confirmedNimTestnetLuna,'0');assert.equal(dashboard.body.testnetMetrics.totalTestnetOrdersCount,0);assert.equal(dashboard.body.orders.length,2);
+    const state=(await f.state()).database;assert.deepEqual(state.orders,original.orders);assert.equal(state.products[0].priceUsdtMicro,'2000000');assert.equal(state.stores[0].polygonAddress,'original-mainnet-wallet');assert.equal(state.stores[0].polygonAmoyAddress,legacy.snapshotRecipient);assert.equal(state.stores[0].polygonAmoyTestTokenContract,legacy.snapshotTokenContract);assert.equal(rpcCalls,0);
+    const cart={items:[{productId:'old-product',quantity:1}],asset:'USDT',environment:'testnet'};
+    assert.equal((await req('/api/public/stores/archive-shop/orders',cart)).status,400);
+    const nim=await req('/api/public/stores/archive-shop/orders',{...cart,asset:'NIM'});assert.equal(nim.status,201);assert.equal(nim.body.order.amountFormatted,'2 NIM (TESTNET)');assert.equal(nim.body.order.network,'nimiq-testnet');assert.equal(nim.body.order.snapshotTokenContract,null);
+  }finally{globalThis.fetch=nativeFetch;await new Promise<void>(resolve=>http.close(()=>resolve()));await f.db.close();}
+});

@@ -5,7 +5,6 @@ import {
   calculateCartTotals,
   DEFAULT_NETWORK_ENV,
   formatLunaToNim,
-  formatMicroToUsdt,
   MENU_CATEGORY_COLUMNS,
   type CartItemInput,
   type FulfillmentMode,
@@ -25,11 +24,7 @@ export interface PublicStoreInfo {
   logoUrl?: string;
   activeEnvironment?: NetworkEnvironment;
   acceptsNim: boolean;
-  acceptsUsdt: boolean;
   acceptsTestnetNim?: boolean;
-  acceptsTestnetUsdt?: boolean;
-  hasAmoyTestTokenContract?: boolean;
-  polygonAmoyTestTokenContract?: string | null;
   supportsPickup: boolean;
   supportsDelivery: boolean;
   supportsDineIn: boolean;
@@ -71,11 +66,10 @@ export const CustomerStorefront: React.FC<CustomerStorefrontProps> = ({
 
   const isTestnet = selectedEnvironment === 'testnet';
   const nimUnitLabel = isTestnet ? 'NIM (TESTNET)' : 'NIM';
-  const usdtUnitLabel = isTestnet ? 'TEST TOKEN' : 'USDT';
 
   const [selectedCategory, setSelectedCategory] = useState<'all' | ProductCategory>('all');
   const [selectedAsset, setSelectedAsset] = useState<PaymentAsset>(
-    store.acceptsNim ? 'NIM' : 'USDT'
+    'NIM'
   );
   const [cart, setCart] = useState<CartItemInput[]>([
     { productId: 'prod_iced_latte', quantity: 1 },
@@ -184,9 +178,9 @@ export const CustomerStorefront: React.FC<CustomerStorefrontProps> = ({
   };
 
   return (
-    <div className="min-h-screen bg-[#0B0F14] text-[#F8FAFC] flex flex-col">
+    <div className="min-h-screen bg-[var(--surface-base)] text-[var(--ink)] flex flex-col">
       {/* Top Bar Contract: 3 zones separated by gap-8 */}
-      <header className="sticky top-0 z-30 bg-[#0B0F14]/95 border-b border-slate-600/80 px-4 sm:px-8 py-4">
+      <header className="sticky top-0 z-30 bg-[var(--surface-base)]/95 border-b border-slate-600/80 px-4 sm:px-8 py-4">
         <div className="max-w-[1360px] mx-auto flex flex-wrap items-center justify-between gap-4 sm:gap-8">
           {/* Zone 1: Brand Title */}
           <BrandLogo
@@ -199,25 +193,25 @@ export const CustomerStorefront: React.FC<CustomerStorefrontProps> = ({
           <nav className="hidden md:flex items-center gap-6 text-sm font-medium text-slate-300" aria-label="Storefront navigation">
             <a
               href="#menu-catalog"
-              className="hover:text-[#F8FAFC] transition-colors whitespace-nowrap shrink-0"
+              className="hover:text-[var(--ink)] transition-colors whitespace-nowrap shrink-0"
             >
               {t.navMenu}
             </a>
             <a
               href="#order-panel"
-              className="hover:text-[#F8FAFC] transition-colors whitespace-nowrap shrink-0"
+              className="hover:text-[var(--ink)] transition-colors whitespace-nowrap shrink-0"
             >
               {t.navYourOrder} ({totalItemsCount})
             </a>
             <button
               type="button"
               onClick={onOpenDocsModal}
-              className="hover:text-[#F8FAFC] transition-colors whitespace-nowrap shrink-0 cursor-pointer"
+              className="hover:text-[var(--ink)] transition-colors whitespace-nowrap shrink-0 cursor-pointer"
             >
               {t.navPolicies}
             </button>
             <div className="flex items-center gap-1.5 text-slate-300">
-              <Globe className="w-3.5 h-3.5 text-[#DFC496]" aria-hidden="true" />
+              <Globe className="w-3.5 h-3.5 text-[var(--gold-ink)]" aria-hidden="true" />
               <label htmlFor="storefront-lang-select" className="sr-only">
                 Language
               </label>
@@ -226,7 +220,7 @@ export const CustomerStorefront: React.FC<CustomerStorefrontProps> = ({
                 aria-label="Language"
                 value={locale}
                 onChange={(e) => onChangeLocale(e.target.value as SupportedLocale)}
-                className="bg-[#1C2430] border border-slate-500/80 rounded-lg px-2.5 py-1 text-xs font-medium text-[#F8FAFC] focus-visible:outline-2 focus-visible:outline-[#14B8A6] cursor-pointer"
+                className="bg-[var(--surface-card)] border border-slate-500/80 rounded-lg px-2.5 py-1 text-xs font-medium text-[var(--ink)] focus-visible:outline-2 focus-visible:outline-[#14B8A6] cursor-pointer"
               >
                 {(Object.keys(LOCALE_METADATA) as SupportedLocale[]).map((loc) => (
                   <option key={loc} value={loc}>
@@ -243,7 +237,7 @@ export const CustomerStorefront: React.FC<CustomerStorefrontProps> = ({
               aria-label="Mobile Language"
               value={locale}
               onChange={(e) => onChangeLocale(e.target.value as SupportedLocale)}
-              className="md:hidden bg-[#1C2430] border border-slate-500/80 rounded-lg px-2 py-1.5 text-xs font-medium text-[#F8FAFC]"
+              className="md:hidden bg-[var(--surface-card)] border border-slate-500/80 rounded-lg px-2 py-1.5 text-xs font-medium text-[var(--ink)]"
             >
               {(Object.keys(LOCALE_METADATA) as SupportedLocale[]).map((loc) => (
                 <option key={loc} value={loc}>
@@ -254,7 +248,7 @@ export const CustomerStorefront: React.FC<CustomerStorefrontProps> = ({
             <button
               type="button"
               onClick={onNavigateSellerLogin}
-              className="px-4 py-2 text-xs sm:text-sm font-medium text-[#F8FAFC] bg-[#1C2430] border border-slate-500/90 rounded-lg hover:border-[#DFC496]/60 hover:text-[#DFC496] transition-colors whitespace-nowrap shrink-0 cursor-pointer"
+              className="px-4 py-2 text-xs sm:text-sm font-medium text-[var(--ink)] bg-[var(--surface-card)] border border-slate-500/90 rounded-lg hover:border-[#DFC496]/60 hover:text-[var(--gold-ink)] transition-colors whitespace-nowrap shrink-0 cursor-pointer"
             >
               {t.navSellerLogin}
             </button>
@@ -284,8 +278,8 @@ export const CustomerStorefront: React.FC<CustomerStorefrontProps> = ({
             </span>
             <span className="font-medium">
               {isTestnet
-                ? uiText(locale, "Menggunakan Nimiq Testnet (NIM TESTNET) & Polygon Amoy (Chain ID 80002 · TEST TOKEN — Bukan USDT Asli). Pesanan testnet terpisah ketat & bukan penjualan nyata.")
-                : uiText(locale, "Menggunakan Nimiq Mainnet (NIM) & Polygon Mainnet (Chain ID 137 · USDT Kontrak 0xc213...8e8F). Transaksi memakai dana asli.")}
+                ? uiText(locale, "Menggunakan Nimiq Testnet (NIM TESTNET). Pesanan uji terpisah dari penjualan nyata.")
+                : uiText(locale, "Pembayaran Mainnet belum tersedia. Jangan mengirim dana asli.")}
             </span>
           </div>
 
@@ -300,7 +294,7 @@ export const CustomerStorefront: React.FC<CustomerStorefrontProps> = ({
                   : 'text-stone-700 hover:bg-stone-100'
               }`}
             >
-              TESTNET (Amoy 80002 / Nimiq Test)
+              NIM TESTNET
             </button>
             <button
               type="button"
@@ -312,7 +306,7 @@ export const CustomerStorefront: React.FC<CustomerStorefrontProps> = ({
                   : 'text-stone-700 hover:bg-stone-100'
               }`}
             >
-              MAINNET (137 / Nimiq Main)
+              NIM MAINNET
             </button>
           </div>
         </div>
@@ -337,11 +331,11 @@ export const CustomerStorefront: React.FC<CustomerStorefrontProps> = ({
             <section className="grid grid-cols-1 md:grid-cols-12 gap-6 items-center pt-2 pb-4 border-b border-slate-600/70">
               <div className="md:col-span-7 space-y-4">
                 <h1
-                  className="font-display text-[#F8FAFC] font-normal tracking-tight leading-[1.08]"
+                  className="font-display text-[var(--ink)] font-normal tracking-tight leading-[1.08]"
                   style={{ fontSize: 'clamp(2.35rem, 4.2vw, 3.85rem)', textWrap: 'balance' }}
                 >
                   <span className="block">{t.heroHeadlineLine1}</span>
-                  <span className="block text-[#DFC496]">{t.heroHeadlineLine2}</span>
+                  <span className="block text-[var(--gold-ink)]">{t.heroHeadlineLine2}</span>
                 </h1>
                 <p className="text-slate-200/90 text-base sm:text-lg max-w-xl leading-relaxed">
                   {t.heroSubtitle}
@@ -349,22 +343,22 @@ export const CustomerStorefront: React.FC<CustomerStorefrontProps> = ({
 
                 {/* Store Selector & Status Row */}
                 <div className="pt-2 flex flex-wrap items-center gap-3">
-                  <div className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-[#0F3D3E]/85 border border-[#14B8A6]/60 text-[#F8FAFC] text-sm font-medium animate-pulse-glow">
+                  <div className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-[var(--surface-selected)]/85 border border-[#14B8A6]/60 text-[var(--ink)] text-sm font-medium animate-pulse-glow">
                     <span className="w-2 h-2 rounded-full bg-[#2DD4BF] animate-ping" aria-hidden="true" />
                     {store.logoUrl && <img src={store.logoUrl} alt={`${store.name} logo`} data-testid="customer-shop-logo" className="w-12 h-12 rounded-lg bg-white object-contain p-1 shrink-0"/>}
                     <span>{store.name}</span>
                     <span aria-hidden="true">·</span>
-                    <span className="text-[#2DD4BF]">{t.openStatus}</span>
+                    <span className="text-[var(--teal-ink)]">{t.openStatus}</span>
                   </div>
 
                   {/* Store Switcher to verify two-seller isolation */}
-                  <div className="inline-flex items-center gap-1 p-1 bg-[#1C2430] border border-slate-600 rounded-lg text-xs">
+                  <div className="inline-flex items-center gap-1 p-1 bg-[var(--surface-card)] border border-slate-600 rounded-lg text-xs">
                     <button
                       type="button"
                       onClick={() => onSwitchStore('moonlight-cafe')}
                       className={`px-2.5 py-1 rounded-md font-medium transition-colors whitespace-nowrap cursor-pointer ${
                         store.slug === 'moonlight-cafe'
-                          ? 'bg-[#263242] text-[#DFC496]'
+                          ? 'bg-[var(--surface-raised)] text-[var(--gold-ink)]'
                           : 'text-slate-300/80 hover:text-white'
                       }`}
                     >
@@ -375,7 +369,7 @@ export const CustomerStorefront: React.FC<CustomerStorefrontProps> = ({
                       onClick={() => onSwitchStore('aurora-roasters')}
                       className={`px-2.5 py-1 rounded-md font-medium transition-colors whitespace-nowrap cursor-pointer ${
                         store.slug === 'aurora-roasters'
-                          ? 'bg-[#263242] text-[#DFC496]'
+                          ? 'bg-[var(--surface-raised)] text-[var(--gold-ink)]'
                           : 'text-slate-300/80 hover:text-white'
                       }`}
                     >
@@ -415,7 +409,7 @@ export const CustomerStorefront: React.FC<CustomerStorefrontProps> = ({
                     className={`px-4 py-2 text-sm font-medium rounded-lg transition-all whitespace-nowrap shrink-0 cursor-pointer active:scale-95 ${
                       selectedCategory === 'all'
                         ? 'bg-[#14B8A6] text-[#071318] font-semibold shadow-sm'
-                        : 'text-slate-300 hover:text-[#F8FAFC] bg-[#1C2430] border border-slate-500'
+                        : 'text-slate-300 hover:text-[var(--ink)] bg-[var(--surface-card)] border border-slate-500'
                     }`}
                   >{' '}{uiText(locale, "Semua Kolom (")}{' '}{products.filter((p) => p.available).length})
                   </button>
@@ -434,7 +428,7 @@ export const CustomerStorefront: React.FC<CustomerStorefrontProps> = ({
                         className={`px-3.5 py-2 text-xs sm:text-sm font-medium rounded-lg transition-all whitespace-nowrap shrink-0 cursor-pointer active:scale-95 ${
                           active
                             ? 'bg-[#14B8A6] text-[#071318] font-semibold shadow-sm'
-                            : 'text-slate-300 hover:text-[#F8FAFC] bg-[#1C2430] border border-slate-500'
+                            : 'text-slate-300 hover:text-[var(--ink)] bg-[var(--surface-card)] border border-slate-500'
                         }`}
                       >
                         {categoryCopy(col.id, locale).title} ({count})
@@ -469,7 +463,7 @@ export const CustomerStorefront: React.FC<CustomerStorefrontProps> = ({
                     <div
                       key={col.id}
                       data-testid={`menu-column-${col.id}`}
-                      className="bg-[#1C2430] border border-slate-500 rounded-3xl p-4 sm:p-5 space-y-4 shadow-sm"
+                      className="bg-[var(--surface-card)] border border-slate-500 rounded-3xl p-4 sm:p-5 space-y-4 shadow-sm"
                     >
                       {/* Column Header */}
                       <div className="flex items-center justify-between gap-2 border-b border-[#EAE2D3] pb-3">
@@ -502,23 +496,8 @@ export const CustomerStorefront: React.FC<CustomerStorefrontProps> = ({
                           {colProducts.map((product, idx) => {
                             const inCart =
                               validStoreCart.find((i) => i.productId === product.id)?.quantity || 0;
-                            const activeAssetPrice =
-                              selectedAsset === 'NIM'
-                                ? product.priceNimLuna
-                                  ? `${formatLunaToNim(product.priceNimLuna)} ${nimUnitLabel}`
-                                  : null
-                                : product.priceUsdtMicro
-                                ? `${formatMicroToUsdt(product.priceUsdtMicro)} ${usdtUnitLabel}`
-                                : null;
-
-                            const secondaryAssetPrice =
-                              selectedAsset === 'NIM'
-                                ? product.priceUsdtMicro
-                                  ? `${formatMicroToUsdt(product.priceUsdtMicro)} ${usdtUnitLabel}`
-                                  : null
-                                : product.priceNimLuna
-                                ? `${formatLunaToNim(product.priceNimLuna)} ${nimUnitLabel}`
-                                : null;
+                            const activeAssetPrice = product.priceNimLuna ? `${formatLunaToNim(product.priceNimLuna)} ${nimUnitLabel}` : null;
+                            const secondaryAssetPrice = null;
 
                             const isBroken = brokenImages[product.id];
 
@@ -526,7 +505,7 @@ export const CustomerStorefront: React.FC<CustomerStorefrontProps> = ({
                               <article
                                 key={product.id}
                                 style={{ animationDelay: `${idx * 45}ms` }}
-                                className="group menu-card-live animate-card-in bg-[#263242] border border-slate-500 rounded-2xl p-3 flex items-center justify-between gap-3.5"
+                                className="group menu-card-live animate-card-in bg-[var(--surface-raised)] border border-slate-500 rounded-2xl p-3 flex items-center justify-between gap-3.5"
                               >
                                 <div className="flex items-center gap-3.5 min-w-0">
                                   <div className="relative w-20 h-20 rounded-xl bg-[#EFE6D8] overflow-hidden shrink-0">
@@ -545,7 +524,7 @@ export const CustomerStorefront: React.FC<CustomerStorefrontProps> = ({
                                       />
                                     ) : (
                                       <div className="w-full h-full flex items-center justify-center p-2 text-center">
-                                        <span className="font-display text-xs text-[#DFC496]">
+                                        <span className="font-display text-xs text-[var(--gold-ink)]">
                                           {product.name}
                                         </span>
                                       </div>
@@ -558,12 +537,12 @@ export const CustomerStorefront: React.FC<CustomerStorefrontProps> = ({
                                       {inCart > 0 && (
                                         <>
                                           <span aria-hidden="true">·</span>
-                                          <span className="text-[#2DD4BF] font-bold">
+                                          <span className="text-[var(--teal-ink)] font-bold">
                                             {inCart}{' '}{uiText(locale, "di pesanan")}{' '}</span>
                                         </>
                                       )}
                                     </div>
-                                    <h2 className="text-sm sm:text-base font-semibold text-[#F8FAFC] truncate">
+                                    <h2 className="text-sm sm:text-base font-semibold text-[var(--ink)] truncate">
                                       {product.name}
                                     </h2>
                                     <p className="text-xs text-slate-300 line-clamp-1">
@@ -571,12 +550,12 @@ export const CustomerStorefront: React.FC<CustomerStorefrontProps> = ({
                                     </p>
                                     <div className="flex items-baseline gap-2 tabular-nums pt-0.5">
                                       {activeAssetPrice ? (
-                                        <span className="text-sm font-bold text-[#DFC496]">
+                                        <span className="text-sm font-bold text-[var(--gold-ink)]">
                                           {activeAssetPrice}
                                         </span>
                                       ) : (
                                         <span className="text-xs font-medium text-amber-700">
-                                          {selectedAsset === 'NIM' ? `${usdtUnitLabel} Only` : `${nimUnitLabel} Only`}
+                                          {uiText(locale,'Harga NIM belum tersedia')}
                                         </span>
                                       )}
                                       {secondaryAssetPrice && (
@@ -612,23 +591,23 @@ export const CustomerStorefront: React.FC<CustomerStorefrontProps> = ({
           <aside
             id="order-panel"
             aria-label="Your order summary"
-            className="lg:col-span-4 lg:sticky lg:top-24 bg-[#1C2430] border border-slate-600/90 rounded-2xl p-6 space-y-5 shadow-xl"
+            className="lg:col-span-4 lg:sticky lg:top-24 bg-[var(--surface-card)] border border-slate-600/90 rounded-2xl p-6 space-y-5 shadow-xl"
           >
             {/* Header row */}
             <div className="flex items-center justify-between">
-              <span className="w-8 h-8 rounded-full bg-[#263242] flex items-center justify-center text-slate-300">
+              <span className="w-8 h-8 rounded-full bg-[var(--surface-raised)] flex items-center justify-center text-slate-300">
                 <ArrowLeft className="w-4 h-4" aria-hidden="true" />
               </span>
               <span className="text-xs text-slate-300 font-mono tabular-nums">
                 {store.slug} · {isTestnet ? 'TESTNET' : 'MAINNET'}
               </span>
-              <span className="w-8 h-8 rounded-full bg-[#263242] flex items-center justify-center text-slate-300">
+              <span className="w-8 h-8 rounded-full bg-[var(--surface-raised)] flex items-center justify-center text-slate-300">
                 <SlidersHorizontal className="w-4 h-4" aria-hidden="true" />
               </span>
             </div>
 
             <div>
-              <h2 className="text-2xl font-semibold text-[#F8FAFC] tracking-tight">
+              <h2 className="text-2xl font-semibold text-[var(--ink)] tracking-tight">
                 {t.yourOrder}
               </h2>
               <p className="text-xs text-slate-300 mt-0.5 tabular-nums">
@@ -637,14 +616,14 @@ export const CustomerStorefront: React.FC<CustomerStorefrontProps> = ({
             </div>
 
             {/* Fulfillment Mode Selector (Dine-in / Pickup / Delivery) */}
-            <div className="grid grid-cols-3 gap-1.5 p-1 bg-[#0B0F14] rounded-xl border border-slate-600/80">
+            <div className="grid grid-cols-3 gap-1.5 p-1 bg-[var(--surface-base)] rounded-xl border border-slate-600/80">
               {store.supportsDineIn && (
                 <button
                   type="button"
                   onClick={() => setFulfillmentMode('dine_in')}
                   className={`py-1.5 px-2 rounded-lg text-xs font-medium transition-colors whitespace-nowrap truncate cursor-pointer ${
                     fulfillmentMode === 'dine_in'
-                      ? 'bg-[#263242] text-[#F8FAFC]'
+                      ? 'bg-[var(--surface-raised)] text-[var(--ink)]'
                       : 'text-slate-300 hover:text-slate-200'
                   }`}
                 >
@@ -657,7 +636,7 @@ export const CustomerStorefront: React.FC<CustomerStorefrontProps> = ({
                   onClick={() => setFulfillmentMode('pickup')}
                   className={`py-1.5 px-2 rounded-lg text-xs font-medium transition-colors whitespace-nowrap truncate cursor-pointer ${
                     fulfillmentMode === 'pickup'
-                      ? 'bg-[#263242] text-[#F8FAFC]'
+                      ? 'bg-[var(--surface-raised)] text-[var(--ink)]'
                       : 'text-slate-300 hover:text-slate-200'
                   }`}
                 >
@@ -670,7 +649,7 @@ export const CustomerStorefront: React.FC<CustomerStorefrontProps> = ({
                   onClick={() => setFulfillmentMode('delivery')}
                   className={`py-1.5 px-2 rounded-lg text-xs font-medium transition-colors whitespace-nowrap truncate cursor-pointer ${
                     fulfillmentMode === 'delivery'
-                      ? 'bg-[#263242] text-[#F8FAFC]'
+                      ? 'bg-[var(--surface-raised)] text-[var(--ink)]'
                       : 'text-slate-300 hover:text-slate-200'
                   }`}
                 >
@@ -689,14 +668,7 @@ export const CustomerStorefront: React.FC<CustomerStorefrontProps> = ({
                 {validStoreCart.map((entry) => {
                   const prod = products.find((p) => p.id === entry.productId);
                   if (!prod) return null;
-                  const unitPriceStr =
-                    selectedAsset === 'NIM'
-                      ? prod.priceNimLuna
-                        ? `${formatLunaToNim(BigInt(prod.priceNimLuna) * BigInt(entry.quantity))} ${nimUnitLabel}`
-                        : `N/A in ${nimUnitLabel}`
-                      : prod.priceUsdtMicro
-                      ? `${formatMicroToUsdt(BigInt(prod.priceUsdtMicro) * BigInt(entry.quantity))} ${usdtUnitLabel}`
-                      : `N/A in ${usdtUnitLabel}`;
+                  const unitPriceStr = prod.priceNimLuna ? `${formatLunaToNim(BigInt(prod.priceNimLuna) * BigInt(entry.quantity))} ${nimUnitLabel}` : `N/A in ${nimUnitLabel}`;
 
                   return (
                     <div
@@ -704,7 +676,7 @@ export const CustomerStorefront: React.FC<CustomerStorefrontProps> = ({
                       className="pt-3 first:pt-0 flex items-center justify-between gap-3"
                     >
                       <div className="flex items-center gap-3 min-w-0">
-                        <div className="flex items-center gap-1 bg-[#263242] rounded-lg px-1.5 py-1 shrink-0">
+                        <div className="flex items-center gap-1 bg-[var(--surface-raised)] rounded-lg px-1.5 py-1 shrink-0">
                           <button
                             type="button"
                             onClick={() => updateCartQuantity(prod.id, -1)}
@@ -726,7 +698,7 @@ export const CustomerStorefront: React.FC<CustomerStorefrontProps> = ({
                           </button>
                         </div>
                         <div className="min-w-0">
-                          <div className="text-sm font-medium text-[#F8FAFC] truncate">
+                          <div className="text-sm font-medium text-[var(--ink)] truncate">
                             {prod.name}
                           </div>
                           <div className="text-[13px] text-slate-300">
@@ -757,14 +729,14 @@ export const CustomerStorefront: React.FC<CustomerStorefrontProps> = ({
                   onChange={(e) => setTableOrNote(e.target.value)}
                   placeholder={t.orderNotePlaceholder}
                   maxLength={120}
-                  className="w-full bg-[#0B0F14] border border-slate-600 rounded-xl px-3.5 py-2 text-xs text-[#F8FAFC] placeholder:text-slate-300 focus-visible:outline-2 focus-visible:outline-[#14B8A6]"
+                  className="w-full bg-[var(--surface-base)] border border-slate-600 rounded-xl px-3.5 py-2 text-xs text-[var(--ink)] placeholder:text-slate-300 focus-visible:outline-2 focus-visible:outline-[#14B8A6]"
                 />
               </div>
 
               {fulfillmentMode === 'delivery' && (
-                <div className="p-3.5 rounded-xl bg-[#0B0F14] border border-slate-600 space-y-2.5">
+                <div className="p-3.5 rounded-xl bg-[var(--surface-base)] border border-slate-600 space-y-2.5">
                   <div className="text-[13px] text-slate-300 flex items-center gap-1.5">
-                    <ShieldCheck className="w-3.5 h-3.5 text-[#14B8A6] shrink-0" />
+                    <ShieldCheck className="w-3.5 h-3.5 text-[var(--teal-ink)] shrink-0" />
                     <span>{t.deliveryPrivacyNote}</span>
                   </div>
                   <input
@@ -773,7 +745,7 @@ export const CustomerStorefront: React.FC<CustomerStorefrontProps> = ({
                     placeholder={t.deliveryNameLabel}
                     value={deliveryName}
                     onChange={(e) => setDeliveryName(e.target.value)}
-                    className="w-full bg-[#1C2430] border border-slate-500/80 rounded-lg px-3 py-1.5 text-xs text-[#F8FAFC]"
+                    className="w-full bg-[var(--surface-card)] border border-slate-500/80 rounded-lg px-3 py-1.5 text-xs text-[var(--ink)]"
                   />
                   <input
                     type="tel"
@@ -781,7 +753,7 @@ export const CustomerStorefront: React.FC<CustomerStorefrontProps> = ({
                     placeholder={t.deliveryPhoneLabel}
                     value={deliveryPhone}
                     onChange={(e) => setDeliveryPhone(e.target.value)}
-                    className="w-full bg-[#1C2430] border border-slate-500/80 rounded-lg px-3 py-1.5 text-xs text-[#F8FAFC]"
+                    className="w-full bg-[var(--surface-card)] border border-slate-500/80 rounded-lg px-3 py-1.5 text-xs text-[var(--ink)]"
                   />
                   <textarea
                     rows={2}
@@ -789,7 +761,7 @@ export const CustomerStorefront: React.FC<CustomerStorefrontProps> = ({
                     placeholder={t.deliveryAddressLabel}
                     value={deliveryAddress}
                     onChange={(e) => setDeliveryAddress(e.target.value)}
-                    className="w-full bg-[#1C2430] border border-slate-500/80 rounded-lg px-3 py-1.5 text-xs text-[#F8FAFC]"
+                    className="w-full bg-[var(--surface-card)] border border-slate-500/80 rounded-lg px-3 py-1.5 text-xs text-[var(--ink)]"
                   />
                 </div>
               )}
@@ -800,13 +772,13 @@ export const CustomerStorefront: React.FC<CustomerStorefrontProps> = ({
               <span className="text-base font-medium text-slate-300">{t.totalLabel}</span>
               <span
                 data-testid="order-total-display"
-                className="text-xl font-bold text-[#F8FAFC] tabular-nums"
+                className="text-xl font-bold text-[var(--ink)] tabular-nums"
               >
                 {calculation.totalFormatted}
               </span>
             </div>
 
-            {/* Asset Selector: NIM vs Polygon USDT / TEST TOKEN */}
+            {/* NIM-only payment method */}
             <div className="space-y-2">
               <div className="flex items-center justify-between text-xs text-slate-300">
                 <span>{t.paymentMethod}</span>
@@ -814,7 +786,7 @@ export const CustomerStorefront: React.FC<CustomerStorefrontProps> = ({
                   {isTestnet ? 'Lingkungan: TESTNET' : 'Lingkungan: MAINNET'}
                 </span>
               </div>
-              <div className="grid grid-cols-2 gap-2.5">
+              <div className="grid grid-cols-1 gap-2.5">
                 <button
                   type="button"
                   data-testid="select-asset-nim"
@@ -822,8 +794,8 @@ export const CustomerStorefront: React.FC<CustomerStorefrontProps> = ({
                   onClick={() => setSelectedAsset('NIM')}
                   className={`flex items-center gap-2.5 p-3 rounded-xl border text-left transition-colors cursor-pointer ${
                     selectedAsset === 'NIM'
-                      ? 'bg-[#0F3D3E]/60 border-[#14B8A6] text-[#F8FAFC]'
-                      : 'bg-[#0B0F14] border-slate-600 text-slate-300 hover:text-slate-200'
+                      ? 'bg-[var(--surface-selected)]/60 border-[#14B8A6] text-[var(--ink)]'
+                      : 'bg-[var(--surface-base)] border-slate-600 text-slate-300 hover:text-slate-200'
                   }`}
                 >
                   <span
@@ -845,44 +817,10 @@ export const CustomerStorefront: React.FC<CustomerStorefrontProps> = ({
                   </div>
                 </button>
 
-                <button
-                  type="button"
-                  data-testid="select-asset-usdt"
-                  disabled={!store.acceptsUsdt}
-                  onClick={() => setSelectedAsset('USDT')}
-                  className={`flex items-center gap-2.5 p-3 rounded-xl border text-left transition-colors cursor-pointer ${
-                    selectedAsset === 'USDT'
-                      ? 'bg-[#0F3D3E]/60 border-[#14B8A6] text-[#F8FAFC]'
-                      : 'bg-[#0B0F14] border-slate-600 text-slate-300 hover:text-slate-200'
-                  }`}
-                >
-                  <span
-                    className={`w-5 h-5 rounded-full flex items-center justify-center text-xs font-bold shrink-0 ${
-                      selectedAsset === 'USDT'
-                        ? 'bg-[#14B8A6] text-[#081018]'
-                        : 'bg-slate-800 text-slate-300'
-                    }`}
-                  >
-                    ✓
-                  </span>
-                  <div className="min-w-0">
-                    <div className="text-xs sm:text-sm font-semibold leading-none truncate">
-                      {isTestnet ? 'TEST TOKEN' : 'Polygon USDT'}
-                    </div>
-                    <div className="text-[13px] text-slate-300 mt-1 truncate">
-                      {isTestnet ? 'Polygon Amoy (80002)' : 'Polygon Mainnet (137)'}
-                    </div>
-                  </div>
-                </button>
+
               </div>
 
-              {isTestnet && selectedAsset === 'USDT' && !store.hasAmoyTestTokenContract && (
-                <div
-                  data-testid="amoy-contract-notice"
-                  className="p-2.5 rounded-xl bg-amber-100 border border-amber-400 text-amber-950 text-[13px] leading-relaxed"
-                >
-                  <strong>{' '}{uiText(locale, "Catatan Kontrak TEST TOKEN Amoy (Chain 80002):")}{' '}</strong>{' '}{uiText(locale, "Kontrak ERC-20 uji belum dikonfigurasi di Pengaturan Seller. Kontrak USDT Mainnet (")}{' '}<code className="font-mono">0xc213...8e8F</code>{' '}{uiText(locale, ") tidak dapat digunakan di Amoy. Pembayaran token belum tersedia; pilih NIM Testnet atau hubungi penjual.")}{' '}</div>
-              )}
+
             </div>
 
             {/* Incompatible Asset Warning if Cart has Single-Asset Items */}
@@ -931,7 +869,7 @@ export const CustomerStorefront: React.FC<CustomerStorefrontProps> = ({
       </main>
 
       {/* Mobile Sticky Bottom Cart Bar (Strictly <= 15% viewport height with safe-area padding) */}
-      <div className="lg:hidden fixed bottom-0 inset-x-0 z-30 bg-[#1C2430] border-t border-slate-600 px-4 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
+      <div className="lg:hidden fixed bottom-0 inset-x-0 z-30 bg-[var(--surface-card)] border-t border-slate-600 px-4 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
         <div className="flex items-center justify-between gap-3 max-w-lg mx-auto">
           <button
             type="button"
@@ -941,14 +879,14 @@ export const CustomerStorefront: React.FC<CustomerStorefrontProps> = ({
             }}
             className="flex items-center gap-2.5 text-left min-w-0 cursor-pointer"
           >
-            <div className="w-9 h-9 rounded-xl bg-[#0F3D3E] text-[#2DD4BF] flex items-center justify-center shrink-0">
+            <div className="w-9 h-9 rounded-xl bg-[var(--surface-selected)] text-[var(--teal-ink)] flex items-center justify-center shrink-0">
               <ShoppingBag className="w-4 h-4" />
             </div>
             <div className="min-w-0">
               <div className="text-xs text-slate-300 truncate">
                 {totalItemsCount} items · {selectedAsset}
               </div>
-              <div className="text-sm font-bold text-[#F8FAFC] tabular-nums">
+              <div className="text-sm font-bold text-[var(--ink)] tabular-nums">
                 {calculation.totalFormatted}
               </div>
             </div>
@@ -968,7 +906,7 @@ export const CustomerStorefront: React.FC<CustomerStorefrontProps> = ({
       {/* Footer */}
       <footer className="border-t border-slate-600/80 py-6 px-4 sm:px-8 text-center text-xs text-slate-300 space-y-1">
         <p>
-          <span className="text-[#DFC496] font-medium">NimTera</span> — {t.tagline} ·{' '}
+          <span className="text-[var(--gold-ink)] font-medium">NimTera</span> — {t.tagline} ·{' '}
           <span className="font-mono">https://nimtera.store</span>
         </p>
         <p>{t.independentNotice}</p>

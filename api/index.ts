@@ -23,7 +23,6 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
     const configured = {
       database: Boolean(process.env.DATABASE_URL || process.env.POSTGRES_URL),
       sessionSecret: Boolean(process.env.SESSION_SECRET && process.env.SESSION_SECRET.length >= 64),
-      amoy: Boolean(process.env.POLYGON_AMOY_RPC_URL && process.env.POLYGON_AMOY_TEST_TOKEN_CONTRACT),
     };
     let databaseReachable = false;
     let databaseErrorCode: string | undefined;
@@ -36,7 +35,7 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
     const ready = configured.sessionSecret && databaseReachable;
     res.statusCode = ready ? 200 : 503;
     res.setHeader('Content-Type', 'application/json'); res.setHeader('Cache-Control', 'no-store');
-    return res.end(JSON.stringify({ testnetOnly: true, ready, configured, databaseReachable, databaseErrorCode, nativeDeviceValidated: false }));
+    return res.end(JSON.stringify({ testnetOnly: true, supportedAssets: ['NIM'], activeNetwork: 'nimiq-testnet', ready, configured, databaseReachable, databaseErrorCode, nativeDeviceValidated: false }));
   }
   if (!process.env.SESSION_SECRET || process.env.SESSION_SECRET.length < 64) {
     res.statusCode = 503; res.setHeader('Content-Type', 'application/json');

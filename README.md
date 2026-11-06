@@ -1,6 +1,6 @@
 # NimTera
 
-A Night Market-style storefront, cashier and order-management app for independent sellers. Non-custodial and independent; not an official Nimiq product.
+A NIM-only storefront, cashier and order-management app for independent sellers. Non-custodial and independent; not an official Nimiq product.
 
 **Live app:** [nimtera.store](https://nimtera.store) · **Status:** testnet beta
 
@@ -9,6 +9,7 @@ A Night Market-style storefront, cashier and order-management app for independen
 - Learn the seller/customer flow from the six-language homepage guide and a 20-second silent interface demo with English captions. The video uses illustrative data, not a real payment.
 
 - Register a seller account and open the dashboard without mandatory 2FA. Optional authenticator setup is available in **Settings → Security**; once enabled, codes are required for sign-in and wallet changes.
+- Choose **Day / Night** appearance across the homepage, seller workspace, catalog and checkout. Day uses ivory/gold; Night retains the approved graphite/gold palette. The explicit choice is saved on the device and synchronized between tabs.
 - Manage products, prices, availability and orders from the seller workspace, including the inline cashier menu editor.
 - Choose from **18 example product photos** or upload your own. Upload, replace or remove your shop logo in Settings; branding appears in the seller header and public storefront.
 - Share your shop's `/s/your-shop-slug` link, or let customers choose items on your shop/restaurant’s cashier screen. Customers do not need an account.
@@ -27,9 +28,9 @@ Photo uploads support JPG, PNG and WebP up to 5 MB / 16 MP, with optimization an
 
 ## Networks and Nimiq Pay
 
-**Mainnet payments are disabled.** The beta supports Nimiq TestAlbatross and, only when configured, an approved six-decimal TEST TOKEN on Polygon Amoy (80002). The Amoy token is not real USDT. No swaps, conversion, POL acceptance, custody or automatic refunds.
+**NIM-only. Mainnet payments are disabled.** The beta supports Nimiq TestAlbatross only. No other payment networks, tokens, swaps, conversion, custody or automatic refunds. Original orders using retired payment methods are preserved as read-only history; they cannot create wallet requests or be reverified as NIM.
 
-The app includes the Nimiq Pay Mini App SDK payment path. Native sends require a verified matching testnet host/chain and supported browser capabilities. Unknown/mainnet hosts are blocked; unknown transaction outcomes must be checked before retrying.
+The app includes the Nimiq Pay Mini App SDK payment path. Native sends require a verified matching Nimiq testnet host and supported browser capabilities. Unknown/mainnet hosts are blocked; unknown transaction outcomes must be checked before retrying.
 
 **Wallet binding, QR account pairing and wallet-signature seller login are not implemented yet.** Opening the app inside Nimiq Pay does not automatically authenticate a seller. Physical Nimiq Pay/testnet payment compatibility still needs on-device verification; do not treat the web deployment as proof of it.
 
@@ -46,11 +47,11 @@ npm run build
 npm run dev
 ```
 
-Use `.env.example` for configuration. Never commit credentials or local data. The standalone server uses private local storage for one process; Vercel uses transactional PostgreSQL and does not fall back to temporary files for cloud accounts or uploads. Hosted operation requires a dedicated `DATABASE_URL`, `SESSION_SECRET` and correct `APP_URL`; Amoy configuration is optional. `npm run build:ui` is a separate sample-only build, not the working application.
+Use `.env.example` for configuration. Never commit credentials or local data. The standalone server uses private local storage for one process; Vercel uses transactional PostgreSQL and does not fall back to temporary files for cloud accounts or uploads. Hosted operation requires a dedicated `DATABASE_URL`, `SESSION_SECRET` and correct `APP_URL`. `npm run build:ui` is a separate sample-only build, not the working application.
 
 ## Verification and beta limitations
 
-Latest application validation: **40 unit/security/SQL tests**, TypeScript/build/API smoke, and **11 local browser tests** passed. Real local API tests cover registration without 2FA, later optional activation, durable sessions, products, logos and tenant isolation. Production frontend checks passed with fixture merchant APIs; they are not real production-account or physical payment tests.
+Latest application validation: **41 unit/security/SQL/theme tests**, TypeScript/build/API smoke, and **14 local browser tests** passed. Real local API tests cover registration without 2FA, later optional activation, durable sessions, products, logos, tenant isolation and preservation of retired-payment SQL history. Day/Night tests check saved preferences, cross-tab synchronization, all six theme labels, text contrast and phone-width layouts. Production frontend checks passed with fixture merchant APIs; they are not real production-account or physical payment tests.
 
 ```sh
 npm run lint

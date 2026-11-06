@@ -12,21 +12,17 @@ import {
   FlaskConical,
 } from 'lucide-react';
 import {
-  paymentIntentMessage,
   buildNimiqPaymentDetails,
-  buildPolygonUsdtTransferDetails,
+  isActiveNimOrder,
   formatAssetAmount,
   NETWORK_CONFIGS,
-  POLYGON_USDT_CONTRACT,
   type NetworkId,
   type OrderSnapshot,
 } from '../lib/domain';
 import { LOCALE_METADATA, TRANSLATIONS, type SupportedLocale } from '../lib/i18n';
 import {
   detectNimiqPayCapabilities,
-  inspectConnectedEvmChainId,
   requestNativeNimPayment,
-  requestNativePolygonUsdtPayment,
 } from '../lib/nimiqPay';
 import { BrandLogo } from './BrandLogo';
 import { OrderStatusBadge } from './OrderStatusBadge';
@@ -58,7 +54,6 @@ export const CustomerCheckout: React.FC<CustomerCheckoutProps> = ({
   const [verifying, setVerifying] = useState(false);
   const [walletNotice, setWalletNotice] = useState<string | null>(null);
   const [mainnetExplicitConsent, setMainnetExplicitConsent] = useState(false);
-  const [detectedEvmChainId, setDetectedEvmChainId] = useState<number | null>(null);
 
   const capabilities = detectNimiqPayCapabilities();
 
@@ -89,20 +84,18 @@ export const CustomerCheckout: React.FC<CustomerCheckoutProps> = ({
     let timer: ReturnType<typeof setTimeout>;
     const poll = async () => { await fetchOrder(controller.signal); if (!stopped) timer = setTimeout(poll, 5000); };
     void poll();
-    inspectConnectedEvmChainId().then((res) => setDetectedEvmChainId(res.chainId));
     return () => { stopped = true; clearTimeout(timer); controller.abort(); };
   }, [publicToken]);
 
   // Generate crisp static QR code whenever order or qrMode changes, preserving network identity
   useEffect(() => {
-    if (!order) return;
+    if (!order || !isActiveNimOrder(order)) return;
     setQrUriError(null);
     const origin =
       typeof window !== 'undefined' ? window.location.origin : 'https://nimtera.store';
     const isTestnetOrder =
       order.environment === 'testnet' ||
-      order.network === 'nimiq-testnet' ||
-      order.network === 'polygon-amoy';
+      order.network === 'nimiq-testnet';
     const envParam = isTestnetOrder ? 'testnet' : 'mainnet';
     const checkoutUrl = `${origin}/s/${order.storeSlug}/order/${order.publicToken}?net=${order.network}&env=${envParam}`;
 
@@ -117,21 +110,6 @@ export const CustomerCheckout: React.FC<CustomerCheckoutProps> = ({
           network: order.network === 'nimiq-testnet' ? 'nimiq-testnet' : 'nimiq-mainnet',
         });
         payload = nimDetails.uri;
-      } else {
-        const polyDetails = buildPolygonUsdtTransferDetails({
-          recipient: order.snapshotRecipient,
-          amountMicro: order.amountBase,
-          network: order.network === 'polygon-amoy' ? 'polygon-amoy' : 'polygon-mainnet',
-          tokenContractOverride: order.snapshotTokenContract,
-        });
-        if (!polyDetails.tokenContract) {
-          setQrUriError(
-              uiText(locale, "Kontrak TEST TOKEN Amoy belum dikonfigurasi. Menampilkan QR tautan pesanan dengan identitas jaringan terkunci.")
-          );
-          payload = checkoutUrl;
-        } else {
-          payload = polyDetails.eip681Uri;
-        }
       }
     }
 
@@ -158,14 +136,13 @@ export const CustomerCheckout: React.FC<CustomerCheckoutProps> = ({
 
   const handlePayInNimiqPay = async () => {
     if (!order) return;
-    if (order.environment !== 'testnet' || ['confirmed','failed'].includes(order.paymentStatus) || Date.now() > Date.parse(order.expiresAt)) { setWalletNotice('Invoice cannot request a new payment. Mainnet is disabled during the testnet beta.'); return; }
+    if (!isActiveNimOrder(order) || ['confirmed','failed'].includes(order.paymentStatus) || Date.now() > Date.parse(order.expiresAt)) { setWalletNotice('Invoice cannot request a new payment. Mainnet is disabled during the testnet beta.'); return; }
     if (verifying) return;
     setWalletNotice(null);
 
     const isTestnetOrder =
       order.environment === 'testnet' ||
-      order.network === 'nimiq-testnet' ||
-      order.network === 'polygon-amoy';
+      order.network === 'nimiq-testnet';
 
     if (!isTestnetOrder && !mainnetExplicitConsent) {
       setWalletNotice(
@@ -184,26 +161,6 @@ export const CustomerCheckout: React.FC<CustomerCheckoutProps> = ({
       });
       if (!res.ok) {
         setWalletNotice(res.error || 'Could not initiate Nimiq Pay transaction.');
-        return;
-      }
-      if (res.txHash) {
-        setTxHashInput(res.txHash);
-        await submitVerification(res.txHash);
-      }
-    } else {
-      const res = await requestNativePolygonUsdtPayment({
-        recipient: order.snapshotRecipient,
-        amountMicro: order.amountBase,
-        network: order.network === 'polygon-amoy' ? 'polygon-amoy' : 'polygon-mainnet',
-        tokenContract: order.snapshotTokenContract,
-        intentMessage: paymentIntentMessage(order),
-        authorizeIntent: async (sender, signature) => {
-          const r = await fetch(`/api/public/orders/${encodeURIComponent(order.publicToken)}/intent`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ sender, signature }) });
-          if (!r.ok) throw new Error((await r.json()).error || 'Payment intent rejected');
-        },
-      });
-      if (!res.ok) {
-        setWalletNotice(res.error || 'Could not initiate Polygon token transaction.');
         return;
       }
       if (res.txHash) {
@@ -254,8 +211,8 @@ export const CustomerCheckout: React.FC<CustomerCheckoutProps> = ({
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-[#0B0F14] text-[#F8FAFC] flex items-center justify-center p-6">
-        <div className="w-full max-w-md bg-[#1C2430] border border-slate-600 rounded-2xl p-8 space-y-4">
+      <div className="min-h-screen bg-[var(--surface-base)] text-[var(--ink)] flex items-center justify-center p-6">
+        <div className="w-full max-w-md bg-[var(--surface-card)] border border-slate-600 rounded-2xl p-8 space-y-4">
           <div className="h-6 w-40 bg-slate-800 rounded" />
           <div className="h-24 w-full bg-slate-800/60 rounded-xl" />
           <div className="h-48 w-full bg-slate-800/40 rounded-xl" />
@@ -266,7 +223,7 @@ export const CustomerCheckout: React.FC<CustomerCheckoutProps> = ({
 
   if (error || !order) {
     return (
-      <div className="min-h-screen bg-[#0B0F14] text-[#F8FAFC] flex flex-col items-center justify-center p-6 text-center space-y-4">
+      <div className="min-h-screen bg-[var(--surface-base)] text-[var(--ink)] flex flex-col items-center justify-center p-6 text-center space-y-4">
         <AlertTriangle className="w-10 h-10 text-amber-400" />
         <h1 className="text-xl font-semibold">{error || 'Order not found'}</h1>
         <button
@@ -280,11 +237,12 @@ export const CustomerCheckout: React.FC<CustomerCheckoutProps> = ({
     );
   }
 
+  if (!isActiveNimOrder(order)) return <main className="min-h-screen bg-[var(--surface-base)] text-[var(--ink)] p-6"><div className="max-w-xl mx-auto rounded-2xl border border-slate-500 bg-[var(--surface-card)] p-6 space-y-4" data-testid="archived-order"><BrandLogo/><h1 className="text-2xl">{uiText(locale,'Arsip pesanan — hanya baca')}</h1><p>{order.orderNumber} · {order.amountFormatted}</p><p>{order.paymentStatus}</p><p>{uiText(locale,'Metode pembayaran ini tidak lagi aktif. Riwayat asli tetap disimpan. Jangan kirim pembayaran untuk pesanan ini.')}</p><button onClick={()=>onBackToStore(order.storeSlug)} className="border rounded-xl px-4 py-2">{uiText(locale,'Kembali ke toko')}</button></div></main>;
+
   const isTestnetOrder =
     order.environment === 'testnet' ||
-    order.network === 'nimiq-testnet' ||
-    order.network === 'polygon-amoy';
-  const netSpec = NETWORK_CONFIGS[order.network] || NETWORK_CONFIGS['nimiq-testnet'];
+    order.network === 'nimiq-testnet';
+  const netSpec = NETWORK_CONFIGS['nimiq-testnet'];
   const orderEnvironment: 'testnet' | 'mainnet' = isTestnetOrder ? 'testnet' : 'mainnet';
 
   const shortenedRecipient =
@@ -298,7 +256,7 @@ export const CustomerCheckout: React.FC<CustomerCheckoutProps> = ({
       : `https://nimtera.store/s/${order.storeSlug}/order/${order.publicToken}?net=${order.network}&env=${orderEnvironment}`;
 
   return (
-    <div className="min-h-screen bg-[#0B0F14] text-[#F8FAFC] relative flex flex-col justify-between py-4 px-4 sm:px-8">
+    <div className="min-h-screen bg-[var(--surface-base)] text-[var(--ink)] relative flex flex-col justify-between py-4 px-4 sm:px-8">
       {/* Subtle Night Market atmospheric radial gradient backdrop */}
       <div
         className="fixed inset-0 pointer-events-none opacity-35"
@@ -315,19 +273,19 @@ export const CustomerCheckout: React.FC<CustomerCheckoutProps> = ({
           <button
             type="button"
             onClick={() => onBackToStore(order.storeSlug)}
-            className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl bg-[#1C2430] border border-slate-600 text-xs sm:text-sm font-medium text-slate-300 hover:text-[#F8FAFC] hover:border-slate-500 transition-colors cursor-pointer"
+            className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl bg-[var(--surface-card)] border border-slate-600 text-xs sm:text-sm font-medium text-slate-300 hover:text-[var(--ink)] hover:border-slate-500 transition-colors cursor-pointer"
           >
             <ArrowLeft className="w-4 h-4" />
             <span>{order.storeName}</span>
           </button>
 
           <div className="flex items-center gap-2">
-            <Globe className="w-4 h-4 text-[#DFC496]" aria-hidden="true" />
+            <Globe className="w-4 h-4 text-[var(--gold-ink)]" aria-hidden="true" />
             <select
               aria-label="Checkout Language"
               value={locale}
               onChange={(e) => onChangeLocale(e.target.value as SupportedLocale)}
-              className="bg-[#1C2430] border border-slate-500/80 rounded-xl px-3 py-1.5 text-xs font-medium text-[#F8FAFC] cursor-pointer"
+              className="bg-[var(--surface-card)] border border-slate-500/80 rounded-xl px-3 py-1.5 text-xs font-medium text-[var(--ink)] cursor-pointer"
             >
               {(Object.keys(LOCALE_METADATA) as SupportedLocale[]).map((loc) => (
                 <option key={loc} value={loc}>
@@ -361,9 +319,9 @@ export const CustomerCheckout: React.FC<CustomerCheckoutProps> = ({
               {isTestnetOrder
                 ? uiChoice(locale, `Jaringan Terkunci: ${netSpec.networkDisplayName} · Aset: ${
                     order.assetLabel || netSpec.assetDisplayLabel
-                  } (Bukan Dana Asli / Bukan USDT Mainnet). Tidak ada fallback otomatis ke Mainnet.`, `Locked network: ${netSpec.networkDisplayName} · Asset: ${
+                  } (Bukan Dana Asli). Tidak ada fallback otomatis ke Mainnet.`, `Locked network: ${netSpec.networkDisplayName} · Asset: ${
                     order.assetLabel || netSpec.assetDisplayLabel
-                  } (Test funds, not Mainnet USDT). No automatic fallback to Mainnet.`)
+                  } (Test funds, not real money). No automatic fallback to Mainnet.`)
                 : uiChoice(locale, `Jaringan Terkunci: ${netSpec.networkDisplayName} · Aset: ${netSpec.assetDisplayLabel} (Transaksi Dana Asli — Tidak dapat dibatalkan otomatis).`, `Locked network: ${netSpec.networkDisplayName} · Asset: ${netSpec.assetDisplayLabel} (Real-money transaction — cannot be reversed automatically).`)}
             </span>
           </div>
@@ -380,15 +338,15 @@ export const CustomerCheckout: React.FC<CustomerCheckoutProps> = ({
 
       {/* Main Centered Checkout Card */}
       <main className="relative z-10 my-auto py-1 flex flex-col items-center">
-        <div className="w-full max-w-[440px] bg-[#1C2430] border border-slate-500/80 rounded-3xl p-4 sm:p-5 shadow-2xl space-y-3.5">
+        <div className="w-full max-w-[440px] bg-[var(--surface-card)] border border-slate-500/80 rounded-3xl p-4 sm:p-5 shadow-2xl space-y-3.5">
           {/* Card Top Header: Store Identity + NimTera Logo */}
           <div className="flex items-center justify-between gap-3">
             <div className="flex items-center gap-2.5 min-w-0">
-              <div className="w-8 h-8 rounded-full bg-[#263242] border border-slate-500 flex items-center justify-center text-xs font-bold text-[#DFC496] shrink-0">
+              <div className="w-8 h-8 rounded-full bg-[var(--surface-raised)] border border-slate-500 flex items-center justify-center text-xs font-bold text-[var(--gold-ink)] shrink-0">
                 {order.storeName.slice(0, 1)}
               </div>
               <div className="min-w-0">
-                <div className="text-sm font-semibold text-[#F8FAFC] truncate">
+                <div className="text-sm font-semibold text-[var(--ink)] truncate">
                   {order.storeName}
                 </div>
                 <div className="text-[13px] text-slate-300">
@@ -404,17 +362,17 @@ export const CustomerCheckout: React.FC<CustomerCheckoutProps> = ({
           </div>
 
           {/* Slate-Blue Checkout Header Banner */}
-          <div className="bg-[#223C51] text-[#F8FAFC] rounded-2xl py-2.5 px-4 text-center">
-            <h1 className="text-lg font-bold tracking-tight text-[#F8FAFC]">
+          <div className="bg-[var(--surface-checkout)] text-[var(--ink)] rounded-2xl py-2.5 px-4 text-center">
+            <h1 className="text-lg font-bold tracking-tight text-[var(--ink)]">
               {t.checkoutTitle} {isTestnetOrder ? '(TESTNET)' : '(MAINNET)'}
             </h1>
-            <p className="text-xs font-semibold text-[#FDE68A] tabular-nums">
+            <p className="text-xs font-semibold text-[var(--warning-ink)] tabular-nums">
               {t.orderNumberLabel} {order.orderNumber} · {netSpec.networkDisplayName}
             </p>
           </div>
 
           {/* Itemized Breakdown */}
-          <div className="bg-[#263242] border border-slate-600/90 rounded-2xl p-3 space-y-2">
+          <div className="bg-[var(--surface-raised)] border border-slate-600/90 rounded-2xl p-3 space-y-2">
             <div className="flex items-start gap-3">
               {order.items[0]?.imageUrl && (
                 <img
@@ -430,12 +388,12 @@ export const CustomerCheckout: React.FC<CustomerCheckoutProps> = ({
                     key={item.productId}
                     className="flex items-baseline justify-between gap-2 text-xs sm:text-sm"
                   >
-                    <div className="min-w-0 truncate text-[#F8FAFC] font-medium">
+                    <div className="min-w-0 truncate text-[var(--ink)] font-medium">
                       <span>{item.name}</span>{' '}
                       <span className="text-slate-300 tabular-nums">x{item.quantity}</span>
                     </div>
-                    <div className="font-semibold text-[#F8FAFC] tabular-nums shrink-0">
-                      {formatAssetAmount(item.lineTotalBase, order.asset, orderEnvironment)}
+                    <div className="font-semibold text-[var(--ink)] tabular-nums shrink-0">
+                      {formatAssetAmount(item.lineTotalBase, 'NIM', orderEnvironment)}
                     </div>
                   </div>
                 ))}
@@ -455,7 +413,7 @@ export const CustomerCheckout: React.FC<CustomerCheckoutProps> = ({
               <span className="text-sm font-medium text-slate-300">{t.totalLabel}</span>
               <span
                 data-testid="checkout-total-amount"
-                className="text-lg font-bold text-[#F8FAFC] tabular-nums"
+                className="text-lg font-bold text-[var(--ink)] tabular-nums"
               >
                 {order.amountFormatted}
               </span>
@@ -464,56 +422,33 @@ export const CustomerCheckout: React.FC<CustomerCheckoutProps> = ({
               <span>{' '}{uiText(locale, "Jaringan Terkunci (Locked)")}{' '}</span>
               <span
                 data-testid="checkout-locked-network"
-                className="font-semibold text-[#2DD4BF] font-mono"
+                className="font-semibold text-[var(--teal-ink)] font-mono"
               >
                 {order.network} {order.snapshotChainId ? `(Chain ID ${order.snapshotChainId})` : ''}
               </span>
             </div>
             <div className="flex items-center justify-between text-xs text-slate-300">
-              <span>Label Aset</span>
+              <span>{uiChoice(locale,'Label aset','Asset label')}</span>
               <span className="font-bold">
                 {order.assetLabel || netSpec.assetDisplayLabel}
               </span>
             </div>
-            {order.asset === 'USDT' && (
-              <div className="flex items-center justify-between text-[13px] text-slate-300">
-                <span>
-                  {order.network === 'polygon-amoy'
-                    ? 'Amoy TEST TOKEN Contract'
-                    : 'Mainnet USDT Contract (137)'}
-                </span>
-                <span className="font-mono text-slate-300">
-                  {order.network === 'polygon-amoy'
-                    ? order.snapshotTokenContract
-                      ? `${order.snapshotTokenContract.slice(0, 8)}...${order.snapshotTokenContract.slice(-6)}`
-                      : uiText(locale, "Belum dikonfigurasi (Kontrak 0xc213...8e8F dilarang)")
-                    : `${POLYGON_USDT_CONTRACT.slice(0, 8)}...${POLYGON_USDT_CONTRACT.slice(-6)}`}
-                </span>
-              </div>
-            )}
-            {order.network === 'polygon-amoy' && !order.snapshotTokenContract && (
-              <div
-                data-testid="checkout-amoy-contract-guard"
-                className="p-2.5 rounded-xl bg-amber-100 border border-amber-400 text-amber-950 text-[13px] leading-relaxed"
-              >
-                <strong>{' '}{uiText(locale, "Pengaman Kontrak Polygon Amoy (Chain ID 80002):")}{' '}</strong>{' '}{uiText(locale, "Kontrak")}{' '}{' '}
-                <code>TEST TOKEN</code>{' '}{uiText(locale, "belum dikonfigurasi pada toko ini. Sesuai aturan keamanan, NimTera")}{' '}<strong>{' '}{uiText(locale, "menolak penggunaan alamat kontrak USDT Mainnet")}{' '}</strong> (
-                <code>0xc2132D05D31c914a87C6611C10748AEb04B58e8F</code>{' '}{uiText(locale, ") tidak dapat digunakan di Amoy. Hubungi penjual untuk pesanan baru dengan aset testnet yang tersedia. Jangan mengirim dana pada jaringan lain.")}{' '}</div>
-            )}
+
+
           </div>
 
           {/* Recipient Box + Static QR Container */}
-          <div className="bg-[#263242] border border-slate-600 rounded-2xl p-3.5 space-y-3">
-            <div className="bg-[#151E29] border border-slate-600/90 rounded-xl p-2.5 space-y-1">
+          <div className="bg-[var(--surface-raised)] border border-slate-600 rounded-2xl p-3.5 space-y-3">
+            <div className="bg-[var(--surface-inset)] border border-slate-600/90 rounded-xl p-2.5 space-y-1">
               <div className="flex items-center justify-between gap-2">
-                <span className="text-xs font-semibold text-[#F8FAFC] font-mono">
+                <span className="text-xs font-semibold text-[var(--ink)] font-mono">
                   {t.recipientLabel} ({isTestnetOrder ? 'TESTNET' : 'MAINNET'}): {shortenedRecipient}
                 </span>
                 <div className="flex items-center gap-1.5">
                   <button
                     type="button"
                     onClick={() => setShowFullRecipient(!showFullRecipient)}
-                    className="text-[13px] text-[#2DD4BF] hover:underline cursor-pointer"
+                    className="text-[13px] text-[var(--teal-ink)] hover:underline cursor-pointer"
                   >
                     {showFullRecipient ? 'Hide' : 'Inspect full'}
                   </button>
@@ -534,7 +469,7 @@ export const CustomerCheckout: React.FC<CustomerCheckoutProps> = ({
               {showFullRecipient && (
                 <div
                   data-testid="full-snapshot-recipient"
-                  className="text-[13px] font-mono text-[#DFC496] break-all bg-[#0B0F14] p-2 rounded-lg border border-slate-600"
+                  className="text-[13px] font-mono text-[var(--gold-ink)] break-all bg-[var(--surface-base)] p-2 rounded-lg border border-slate-600"
                 >
                   {order.snapshotRecipient}
                 </div>
@@ -553,8 +488,8 @@ export const CustomerCheckout: React.FC<CustomerCheckoutProps> = ({
                 }`}
               >
                 {isTestnetOrder
-                  ? `QR TESTNET · ${order.network.toUpperCase()} · BUKAN DANA ASLI`
-                  : `QR MAINNET · ${order.network.toUpperCase()} · DANA ASLI`}
+                  ? uiChoice(locale, `QR TESTNET · ${order.network.toUpperCase()} · BUKAN DANA ASLI`, `TESTNET QR · ${order.network.toUpperCase()} · NOT REAL FUNDS`)
+                  : uiChoice(locale, `QR MAINNET · ${order.network.toUpperCase()} · DANA ASLI`, `MAINNET QR · ${order.network.toUpperCase()} · REAL FUNDS`)}
               </div>
 
               <div className="bg-white p-2.5 rounded-2xl shadow-md">
@@ -621,9 +556,9 @@ export const CustomerCheckout: React.FC<CustomerCheckoutProps> = ({
                 <button
                   type="button"
                   onClick={() =>
-                    setQrMode(order.asset === 'USDT' ? 'checkout_link' : qrMode === 'checkout_link' ? 'wallet_uri' : 'checkout_link')
+                    setQrMode(qrMode === 'checkout_link' ? 'wallet_uri' : 'checkout_link')
                   }
-                  className="py-2 px-3 rounded-xl bg-[#151E29] border border-slate-500/80 hover:border-slate-600 text-xs font-medium text-slate-300 transition-colors cursor-pointer"
+                  className="py-2 px-3 rounded-xl bg-[var(--surface-inset)] border border-slate-500/80 hover:border-slate-600 text-xs font-medium text-slate-300 transition-colors cursor-pointer"
                 >
                   {qrMode === 'checkout_link' ? 'Show Direct URI QR' : 'Show Checkout Link QR'}
                 </button>
@@ -631,7 +566,7 @@ export const CustomerCheckout: React.FC<CustomerCheckoutProps> = ({
                 <button
                   type="button"
                   onClick={() => handleCopy(checkoutShareUrl, 'link')}
-                  className="py-2 px-3 rounded-xl bg-[#151E29] border border-slate-500/80 hover:border-slate-600 text-xs font-medium text-slate-300 flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
+                  className="py-2 px-3 rounded-xl bg-[var(--surface-inset)] border border-slate-500/80 hover:border-slate-600 text-xs font-medium text-slate-300 flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
                 >
                   {copiedField === 'link' ? (
                     <>
@@ -651,7 +586,7 @@ export const CustomerCheckout: React.FC<CustomerCheckoutProps> = ({
             {/* Honest Payment & Fulfillment Status Banner */}
             <div
               data-testid="checkout-payment-status"
-              className="rounded-xl p-3 bg-[#151E29] border border-slate-600 text-xs space-y-2"
+              className="rounded-xl p-3 bg-[var(--surface-inset)] border border-slate-600 text-xs space-y-2"
             >
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <OrderStatusBadge
@@ -687,16 +622,14 @@ export const CustomerCheckout: React.FC<CustomerCheckoutProps> = ({
             {/* Honest Nimiq Pay Host Capability & Testnet Availability Report */}
             <div
               data-testid="nimiq-host-capability-report"
-              className="p-3 rounded-xl bg-[#151E29] border border-slate-600 text-[13px] space-y-1.5"
+              className="p-3 rounded-xl bg-[var(--surface-inset)] border border-slate-600 text-[13px] space-y-1.5"
             >
-              <div className="flex items-center justify-between font-semibold text-[#F8FAFC]">
+              <div className="flex items-center justify-between font-semibold text-[var(--ink)]">
                 <span className="inline-flex items-center gap-1.5">
                   <ShieldAlert className="w-3.5 h-3.5 text-amber-700 shrink-0" />
-                  <span>Diagnostik Host Nimiq Pay & Ketersediaan Testnet</span>
+                  <span>{uiText(locale,'Diagnostik Nimiq Pay dan ketersediaan testnet')}</span>
                 </span>
-                <span className="font-mono text-xs px-2 py-0.5 rounded bg-[#263242] border border-slate-500">
-                  EVM Chain: {detectedEvmChainId ?? uiText(locale, "Tidak terdeteksi")}
-                </span>
+
               </div>
               <p className="text-slate-300 leading-relaxed">
                 {capabilities.hostLimitationSummary}
@@ -717,14 +650,14 @@ export const CustomerCheckout: React.FC<CustomerCheckoutProps> = ({
                   type="text"
                   value={txHashInput}
                   onChange={(e) => setTxHashInput(e.target.value)}
-                  placeholder={`Hash tx di ${order.network}...`}
-                  className="flex-1 bg-[#0B0F14] border border-slate-500/80 rounded-xl px-3 py-1.5 text-xs font-mono text-[#F8FAFC]"
+                  placeholder={`Transaction hash · ${order.network}…`}
+                  className="flex-1 bg-[var(--surface-base)] border border-slate-500/80 rounded-xl px-3 py-1.5 text-xs font-mono text-[var(--ink)]"
                 />
                 <button
                   type="button"
                   disabled={verifying}
                   onClick={() => submitVerification()}
-                  className="px-3.5 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-xs font-semibold text-[#F8FAFC] shrink-0 cursor-pointer"
+                  className="px-3.5 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-xs font-semibold text-[var(--ink)] shrink-0 cursor-pointer"
                 >
                   {verifying ? '...' : 'Verify'}
                 </button>

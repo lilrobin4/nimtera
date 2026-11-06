@@ -1,25 +1,15 @@
 import { init, getHostNetwork } from '@nimiq/mini-app-sdk';
-import { buildNimiqPaymentDetails, buildPolygonUsdtTransferDetails, validateAmoyTestTokenContract } from './domain';
+import { buildNimiqPaymentDetails } from './domain';
 
-interface Eip1193Provider { request: (args: { method: string; params?: unknown[] }) => Promise<unknown> }
-declare global { interface Window { ethereum?: Eip1193Provider } }
 export interface HostCapabilities {
-  hasNimiqProvider: boolean; hasEvmProvider: boolean; isInsideNimiqPayWebView: boolean;
+  hasNimiqProvider: boolean; isInsideNimiqPayWebView: boolean;
   detectedNimiqNetwork: string | null; hostLimitationSummary: string;
 }
 export function detectNimiqPayCapabilities(): HostCapabilities {
   const hasNimiqProvider = typeof window !== 'undefined' && Boolean((window as any).nimiq);
   const network = typeof window === 'undefined' ? null : getHostNetwork() || null;
-  return { hasNimiqProvider, hasEvmProvider: typeof window !== 'undefined' && Boolean(window.ethereum), isInsideNimiqPayWebView: hasNimiqProvider, detectedNimiqNetwork: network,
+  return { hasNimiqProvider, isInsideNimiqPayWebView: hasNimiqProvider, detectedNimiqNetwork: network,
     hostLimitationSummary: 'Testnet beta only. Native testnet capability must be exposed and verified by the wallet. If unavailable, use the matching testnet wallet and verify the real transaction hash. No mainnet fallback.' };
-}
-export async function inspectConnectedEvmChainId(): Promise<{ connected: boolean; chainId: number | null; chainIdHex: string | null; error?: string }> {
-  if (typeof window === 'undefined' || !window.ethereum) return { connected: false, chainId: null, chainIdHex: null };
-  try {
-    const hex = await window.ethereum.request({ method: 'eth_chainId' });
-    if (typeof hex !== 'string' || !/^0x[\da-f]+$/i.test(hex)) throw new Error('Unknown wallet chain');
-    return { connected: true, chainId: Number(BigInt(hex)), chainIdHex: hex };
-  } catch (e) { return { connected: true, chainId: null, chainIdHex: null, error: e instanceof Error ? e.message : 'Unknown wallet chain' }; }
 }
 type PaymentResult = { ok: boolean; txHash?: string; error?: string; blockedByNetworkGuard?: boolean };
 let sending = false;
@@ -68,32 +58,4 @@ export async function requestNativeNimPayment(params: { recipient: string; amoun
       return provider.sendBasicTransactionWithData({ recipient: params.recipient, value, data: details.memo });
     });
   } catch (e) { return { ok: false, error: e instanceof Error ? e.message : 'Unable to prepare native testnet request' }; }
-}
-export async function requestNativePolygonUsdtPayment(params: { recipient: string; amountMicro: string; network?: 'polygon-amoy' | 'polygon-mainnet'; tokenContract?: string | null; intentMessage: string; authorizeIntent: (sender: string, signature: string) => Promise<void> }): Promise<PaymentResult> {
-  if (params.network !== 'polygon-amoy') return { ok: false, blockedByNetworkGuard: true, error: 'Mainnet payments are disabled during the testnet beta.' };
-  const check = validateAmoyTestTokenContract(params.tokenContract || '');
-  if (!check.valid || !check.normalized) return { ok: false, error: check.reason || 'Configure an approved Amoy test-token contract first.' };
-  if (typeof window === 'undefined' || !window.ethereum) return { ok: false, error: 'An Amoy-compatible EVM test wallet is required. Native host support must be verified on-device.' };
-  const eth = window.ethereum;
-  try {
-    const guard = async () => { if (await eth.request({ method: 'eth_chainId' }) !== '0x13882') throw new Error('Wrong or unknown network. Polygon Amoy 80002 required.'); };
-    await guard();
-    const accounts = await eth.request({ method: 'eth_requestAccounts' }) as string[];
-    if (!accounts?.[0] || !/^0x[\da-f]{40}$/i.test(accounts[0])) throw new Error('No valid account authorized');
-    await guard();
-    const bytes = new TextEncoder().encode(params.intentMessage);
-    const messageHex = '0x' + Array.from(bytes, x => x.toString(16).padStart(2, '0')).join('');
-    // Account-check signature binds this invoice, not an allowance or spending authorization.
-    const signature = await eth.request({ method: 'personal_sign', params: [messageHex, accounts[0]] });
-    if (typeof signature !== 'string') throw new Error('No signed invoice intent returned');
-    await params.authorizeIntent(accounts[0], signature);
-    await guard();
-    const details = buildPolygonUsdtTransferDetails({ recipient: params.recipient, amountMicro: params.amountMicro, network: 'polygon-amoy', tokenContractOverride: check.normalized });
-    return await guardedPayment(`nimtera.payment:polygon-amoy:${params.intentMessage}`, async () => {
-      await guard();
-      const current = await eth.request({ method: 'eth_accounts' }) as string[];
-      if (current?.[0]?.toLowerCase() !== accounts[0].toLowerCase()) throw new Error('Wallet account changed. Review the invoice again.');
-      return eth.request({ method: 'eth_sendTransaction', params: [{ from: accounts[0], to: check.normalized, value: '0x0', data: details.data }] });
-    });
-  } catch (e) { return { ok: false, error: e instanceof Error ? e.message : 'Unable to prepare test-token payment' }; }
 }

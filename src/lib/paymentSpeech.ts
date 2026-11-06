@@ -1,11 +1,11 @@
 import type { SupportedLocale } from './i18n';
-const WORDS:Record<SupportedLocale,{ready:string;confirmed:string;token:string;decimal:string;usdt:string}>={
- en:{ready:'Payment request ready',confirmed:'Payment received',token:'test tokens',decimal:'point',usdt:'U S D T'},
- id:{ready:'Tagihan siap',confirmed:'Pembayaran diterima',token:'token uji',decimal:'koma',usdt:'U S D T'},
- 'zh-CN':{ready:'付款请求已生成',confirmed:'已收到付款',token:'测试代币',decimal:'点',usdt:'U S D T'},
- vi:{ready:'Yêu cầu thanh toán đã sẵn sàng',confirmed:'Đã nhận thanh toán',token:'token thử nghiệm',decimal:'phẩy',usdt:'U S D T'},
- ms:{ready:'Bil sedia',confirmed:'Bayaran diterima',token:'token ujian',decimal:'perpuluhan',usdt:'U S D T'},
- ru:{ready:'Счёт готов к оплате',confirmed:'Оплата получена',token:'тестовых токенов',decimal:'запятая',usdt:'U S D T'},
+const WORDS:Record<SupportedLocale,{ready:string;confirmed:string;decimal:string}>={
+ en:{ready:'Payment request ready',confirmed:'Payment received',decimal:'point'},
+ id:{ready:'Tagihan siap',confirmed:'Pembayaran diterima',decimal:'koma'},
+ 'zh-CN':{ready:'付款请求已生成',confirmed:'已收到付款',decimal:'点'},
+ vi:{ready:'Yêu cầu thanh toán đã sẵn sàng',confirmed:'Đã nhận thanh toán',decimal:'phẩy'},
+ ms:{ready:'Bil sedia',confirmed:'Bayaran diterima',decimal:'perpuluhan'},
+ ru:{ready:'Счёт готов к оплате',confirmed:'Оплата получена',decimal:'запятая'},
 };
 const DIGITS=['nol','satu','dua','tiga','empat','lima','enam','tujuh','delapan','sembilan'];
 function small(n:number):string {
@@ -27,6 +27,6 @@ export function paymentSpeech(kind:'ready'|'confirmed',amount:string,locale:Supp
  if(match){const [whole,fraction='']=match[0].split('.'),decimals=fraction.replace(/0+$/,'');
  spoken=locale==='id'?indonesianInteger(whole):whole;
  if(decimals)spoken+=` ${words.decimal} `+decimals.split('').map(d=>locale==='id'?DIGITS[Number(d)]:d).join(' ');
- const currency=/TEST TOKEN/i.test(amount)?words.token:/USDT/i.test(amount)?words.usdt:/\bNIM\b/i.test(amount)?(locale==='id'?'nim':'NIM'):'';spoken+=' '+currency;}
+ const currency=/\bNIM\b/i.test(amount)?(locale==='id'?'nim':'NIM'):'';spoken+=' '+currency;}
  return words[kind]+(spoken.trim()?', '+spoken.trim():'')+'.';
 }

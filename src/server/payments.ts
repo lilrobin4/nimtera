@@ -1,4 +1,4 @@
-import { buildNimiqPaymentDetails, ERC20_TRANSFER_TOPIC, NETWORK_CONFIGS, type OrderSnapshot, type OnChainTxEvidence } from '../lib/domain.js';
+import { buildNimiqPaymentDetails, isActiveNimOrder, NETWORK_CONFIGS, type OrderSnapshot, type OnChainTxEvidence } from '../lib/domain.js';
 
 export type RpcCall = (url: string, method: string, params: unknown[]) => Promise<any>;
 class RpcUnavailable extends Error {}
@@ -16,7 +16,7 @@ export const rpcCall: RpcCall = async (url, method, params) => {
   }
 };
 
-export { paymentIntentMessage } from '../lib/domain.js';
+
 
 function normalizeAddress(v: unknown): string { return typeof v === 'string' ? v.replace(/\s/g, '').toLowerCase() : ''; }
 function timeMs(value: unknown): number {
@@ -41,7 +41,7 @@ function memoText(v: unknown): string {
 /** All evidence originates from a fixed server RPC, never from the customer request. */
 export async function readPaymentEvidence(o: OrderSnapshot, hash: string, urls: Record<string, string>, call: RpcCall = rpcCall): Promise<OnChainTxEvidence> {
   const base = { txHash: hash, network: o.network, recipient: o.snapshotRecipient, amountBase: 0n };
-  if (o.environment !== 'testnet' || !['nimiq-testnet', 'polygon-amoy'].includes(o.network)) return { ...base, executionStatus: 'unverified', invalidReason: 'Mainnet disabled in this testnet beta.' };
+  if (!isActiveNimOrder(o)) return { ...base, executionStatus: 'unverified', invalidReason: 'Mainnet disabled in this testnet beta.' };
   try {
     if (o.network === 'nimiq-testnet') {
       const t = await call(urls[o.network], 'getTransactionByHash', [hash]);
@@ -59,23 +59,7 @@ export async function readPaymentEvidence(o: OrderSnapshot, hash: string, urls: 
       if (!(typeof t.value === 'string' && /^\d+$/.test(t.value)) && !(Number.isSafeInteger(t.value) && t.value >= 0)) throw new Error('Invalid transaction value');
       return { ...base, recipient, amountBase: BigInt(t.value), memo: expectedMemo, executionStatus: 'confirmed' };
     }
-    const chain = await call(urls[o.network], 'eth_chainId', []);
-    if (chain !== '0x13882') throw new Error('RPC is not Polygon Amoy');
-    if (!o.snapshotTokenContract || !o.payerAddress) throw new Error('Configure test token and sign the invoice payment intent before sending');
-    const receipt = await call(urls[o.network], 'eth_getTransactionReceipt', [hash]);
-    if (!receipt) return { ...base, executionStatus: 'pending' };
-    if (receipt.transactionHash?.toLowerCase() !== hash.toLowerCase() || !/^0x[\da-f]+$/i.test(receipt.blockNumber || '')) throw new Error('Invalid receipt');
-    const block = await call(urls[o.network], 'eth_getBlockByNumber', [receipt.blockNumber, false]);
-    const head = await call(urls[o.network], 'eth_blockNumber', []);
-    if (!block || block.hash?.toLowerCase() !== receipt.blockHash?.toLowerCase()) throw new Error('Receipt block is not canonical');
-    if (BigInt(head) - BigInt(receipt.blockNumber) + 1n < 5n) return { ...base, executionStatus: 'pending' };
-    checkTime(o, Number(BigInt(block.timestamp)));
-    const tx = await call(urls[o.network], 'eth_getTransactionByHash', [hash]);
-    if (tx?.from?.toLowerCase() !== o.payerAddress.toLowerCase()) throw new Error('Payer does not match signed invoice intent');
-    if (receipt.status !== '0x1') return { ...base, executionStatus: 'failed' };
-    const matching = (receipt.logs || []).filter((l: any) => l.address?.toLowerCase() === o.snapshotTokenContract?.toLowerCase() && l.topics?.length === 3 && l.topics[0]?.toLowerCase() === ERC20_TRANSFER_TOPIC && normalizeAddress('0x' + l.topics[2]?.slice(-40)) === normalizeAddress(o.snapshotRecipient) && normalizeAddress('0x' + l.topics[1]?.slice(-40)) === normalizeAddress(o.payerAddress));
-    if (matching.length !== 1 || matching[0].removed || !/^0x[\da-f]{64}$/i.test(matching[0].data || '')) throw new Error('Invoice transfer event is missing or ambiguous');
-    return { ...base, executionStatus: 'confirmed', amountBase: BigInt(matching[0].data), tokenContract: matching[0].address };
+    throw new Error('Unsupported payment network.');
   } catch (error) {
     if (error instanceof RpcUnavailable || (error instanceof Error && ['AbortError', 'TimeoutError'].includes(error.name))) return { ...base, executionStatus: 'rpc_timeout' };
     return { ...base, executionStatus: 'unverified', invalidReason: error instanceof Error ? error.message : 'Unable to validate network evidence' };

@@ -16,7 +16,7 @@ NimTera is an independent **testnet beta**, not an audited production payment se
 - The app does not request seed phrases or private keys, hold merchant funds or initiate automatic refunds.
 - Each invoice fixes its recipient, asset, amount, network and applicable token details. Later wallet edits do not redirect existing invoices.
 - Browser-supplied hashes are untrusted hints. The server checks matching testnet chain evidence before confirming a payment and guards against reusing a verified transaction for another order.
-- Polygon Amoy requires explicitly configured test-token support. It is not a mainnet USDT payment route.
+- NIM Testnet is the only active payment route. Retired payment fields are rejected; stored legacy receipts remain read-only and are never relabeled as NIM.
 - An RPC timeout or unknown wallet outcome is not evidence of failure. Check the order and wallet history before sending again.
 - Wallet binding and wallet-signature seller login are not available yet. A wallet address alone is not proof of ownership.
 

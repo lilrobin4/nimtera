@@ -4,16 +4,15 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { once } from 'node:events';
-import { Wallet } from 'ethers';
 import { readPaymentEvidence, rpcCall } from '../src/server/payments';
-import { createValidNimiqAddress, paymentIntentMessage, reconcilePaymentVerification, ERC20_TRANSFER_TOPIC, type OrderSnapshot } from '../src/lib/domain';
-import { requestNativeNimPayment, requestNativePolygonUsdtPayment } from '../src/lib/nimiqPay';
+import { createValidNimiqAddress, reconcilePaymentVerification, type OrderSnapshot } from '../src/lib/domain';
+import { requestNativeNimPayment } from '../src/lib/nimiqPay';
 
 const recipient = createValidNimiqAddress('00000000000000000000000000000000');
 const hash = 'a'.repeat(64);
 const now = Date.now();
 const order = { id: 'test1', publicToken: 'nt_ord_' + 'b'.repeat(24), orderNumber: '#T001', storeSlug: 'fixture', storeName: 'Fixture', asset: 'NIM', network: 'nimiq-testnet', environment: 'testnet', snapshotRecipient: recipient, amountBase: '100000', createdAt: new Date(now - 5000).toISOString(), expiresAt: new Date(now + 60000).toISOString(), paymentStatus: 'unpaid' } as OrderSnapshot;
-const urls = { 'nimiq-testnet': 'https://fixture.invalid', 'polygon-amoy': 'https://fixture.invalid' };
+const urls = { 'nimiq-testnet': 'https://fixture.invalid' };
 const nim = { hash, networkId: 5, to: recipient, value: '100000', recipientData: Buffer.from('NimTera ' + order.publicToken).toString('hex'), blockNumber: 8, confirmations: 2, timestamp: now, executionResult: true };
 // Derive memo from the real builder, avoiding a fixture that silently bypasses invoice binding.
 import { buildNimiqPaymentDetails } from '../src/lib/domain';
@@ -44,7 +43,6 @@ test('mainnet is blocked without any RPC or native send; unknown host cannot sen
   assert.equal((await readPaymentEvidence({ ...order, environment: 'mainnet' }, hash, urls, async () => { assert.fail('RPC must not run'); })).executionStatus, 'unverified');
   assert.equal((await requestNativeNimPayment({ recipient, amountLuna: '100000', orderNumber: '#T1', publicToken: order.publicToken, network: 'nimiq-mainnet' })).ok, false);
   assert.equal((await requestNativeNimPayment({ recipient, amountLuna: '100000', orderNumber: '#T1', publicToken: order.publicToken, network: 'nimiq-testnet' })).ok, false);
-  assert.equal((await requestNativePolygonUsdtPayment({ recipient: '0x' + '1'.repeat(40), amountMicro: '1', network: 'polygon-mainnet', intentMessage: '', authorizeIntent: async () => assert.fail() })).ok, false);
 });
 
 test('confirmed is terminal; bad/pending evidence never reserves a hash', () => {
@@ -55,26 +53,17 @@ test('confirmed is terminal; bad/pending evidence never reserves a hash', () => 
   }
 });
 
-test('Amoy requires signed payer, canonical block, five confirmations and matching token event', async () => {
-  const payer = Wallet.createRandom().address;
-  const token = '0x' + '2'.repeat(40), target = '0x' + '3'.repeat(40), txHash = '0x' + hash;
-  const o = { ...order, asset: 'USDT', network: 'polygon-amoy', snapshotRecipient: target, snapshotTokenContract: token, payerAddress: payer } as OrderSnapshot;
-  const topic = (a: string) => '0x' + a.slice(2).toLowerCase().padStart(64, '0');
-  const responses: Record<string, any> = { eth_chainId: '0x13882', eth_blockNumber: '0xe', eth_getBlockByNumber: { hash: 'block', timestamp: '0x' + Math.floor(now / 1000).toString(16) }, eth_getTransactionByHash: { from: payer }, eth_getTransactionReceipt: { transactionHash: txHash, blockNumber: '0xa', blockHash: 'block', status: '0x1', logs: [{ address: token, topics: [ERC20_TRANSFER_TOPIC, topic(payer), topic(target)], data: '0x' + BigInt(order.amountBase).toString(16).padStart(64, '0') }] } };
-  const call = async (_url: string, method: string) => responses[method];
-  assert.equal((await readPaymentEvidence(o, txHash, urls, call)).executionStatus, 'confirmed');
-  assert.equal((await readPaymentEvidence({ ...o, payerAddress: undefined }, txHash, urls, call)).executionStatus, 'unverified');
-  responses.eth_blockNumber = '0xc'; assert.equal((await readPaymentEvidence(o, txHash, urls, call)).executionStatus, 'pending');
-  responses.eth_blockNumber = '0xe'; responses.eth_getBlockByNumber.hash = 'reorg';
-  assert.equal((await readPaymentEvidence(o, txHash, urls, call)).executionStatus, 'unverified');
+test('retired payment records never call an RPC and are not reinterpreted as NIM', async () => {
+  const old = {...order, asset:'USDT',network:'polygon-amoy'} as OrderSnapshot;
+  const before=JSON.stringify(old);
+  assert.equal((await readPaymentEvidence(old,hash,urls,async()=>assert.fail('Retired RPC must not run'))).executionStatus,'unverified');
+  assert.equal(JSON.stringify(old),before);
 });
 
 test('HTTP regression: no CAPTCHA dependency, private MFA, malformed bodies, no simulation, isolation and testnet lock', async () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'nimtera-test-'));
   process.env.NODE_ENV = 'test'; process.env.NIMTERA_DATA_FILE = path.join(dir, 'store.json'); process.env.SESSION_SECRET = 'fixture-only-'.repeat(8);
   delete process.env.TURNSTILE_SECRET_KEY; delete process.env.VITE_TURNSTILE_SITE_KEY; delete process.env.TURNSTILE_ALLOWED_HOSTNAMES;
-  process.env.POLYGON_AMOY_RPC_URL = 'https://fixture.invalid';
-  process.env.POLYGON_AMOY_TEST_TOKEN_CONTRACT = '0x' + '2'.repeat(40);
   const { createApp, generateTotpCode } = await import('../server');
   const app = await createApp(); const server = app.listen(0, '127.0.0.1'); await once(server, 'listening');
   const address = server.address() as { port: number }; const base = `http://127.0.0.1:${address.port}`;
@@ -88,7 +77,7 @@ test('HTTP regression: no CAPTCHA dependency, private MFA, malformed bodies, no 
     return { status: response.status, body: await response.json(), headers: response.headers };
   };
   try {
-    const account = { email: 'fixture@example.test', password: 'Private#TestPassword!2026', storeName: 'Fixture', storeSlug: 'fixture', nimiqAddress: recipient, polygonAddress: '0x' + '3'.repeat(40) };
+    const account = { email: 'fixture@example.test', password: 'Private#TestPassword!2026', storeName: 'Fixture', storeSlug: 'fixture', nimiqAddress: recipient };
     assert.equal((await req('/api/auth/register', { ...account, password: 'short' })).status, 400);
     const registered = await req('/api/auth/register', account);
     assert.equal(registered.status, 201); assert.equal(registered.body.enrollment,undefined); assert.equal(registered.body.seller.totpEnabled,false);
@@ -120,9 +109,9 @@ test('HTTP regression: no CAPTCHA dependency, private MFA, malformed bodies, no 
     const publicPhoto=await fetch(base+photo.body.imageUrl);assert.equal(publicPhoto.status,200);assert.match(publicPhoto.headers.get('content-type')!,/image\/webp/);
     assert.equal((await req('/api/seller/product-images',{imageData:'data:image/svg+xml;base64,AAAA'},session)).status,400);
     assert.equal((await req('/api/seller/product-images',{imageData:'invalid'})).status,401);
-    const product = await req('/api/seller/products', { name: 'Test item', imageUrl:photo.body.imageUrl, priceNimLuna: '100000', priceUsdtMicro: '1000000' }, session);
+    const product = await req('/api/seller/products', { name: 'Test item', imageUrl:photo.body.imageUrl, priceNimLuna: '100000' }, session);
     assert.equal(product.status, 201);
-    assert.equal((await req(`/api/seller/products/${product.body.product.id}`, { name: 'Rejected mutation', priceNimLuna: '0', priceUsdtMicro: '0' }, session, 'PUT')).status, 400);
+    assert.equal((await req(`/api/seller/products/${product.body.product.id}`, { name: 'Rejected mutation', priceNimLuna: '0' }, session, 'PUT')).status, 400);
     assert.equal((await req('/api/seller/dashboard', undefined, session)).body.products[0].name, 'Test item');
     const cart = { asset: 'NIM', items: [{ productId: product.body.product.id, quantity: 1 }], fulfillmentMode: 'pickup' };
     assert.equal((await req('/api/public/stores/fixture/orders', { ...cart, environment: 'mainnet' })).status, 403);
@@ -156,16 +145,11 @@ test('HTTP regression: no CAPTCHA dependency, private MFA, malformed bodies, no 
     assert.equal((await req(`/api/seller/products/${product.body.product.id}`, { name: 'Stolen' }, second.body.token, 'PUT')).status, 403);
     assert.equal((await req('/api/seller/network-environment', { environment: 'mainnet' }, session, 'PATCH')).status, 403);
     assert.ok(!JSON.stringify((await req(`/api/public/orders/${created.body.order.publicToken}`)).body).includes('totpSecret'));
-    const usdtInvoice = await req('/api/public/stores/fixture/orders', { ...cart, asset: 'USDT', environment: 'testnet' });
-    assert.equal(usdtInvoice.status, 201);
-    const signed = Wallet.createRandom();
-    const intentPath = `/api/public/orders/${usdtInvoice.body.order.publicToken}/intent`;
-    const signature = await signed.signMessage(paymentIntentMessage(usdtInvoice.body.order));
-    assert.equal((await req(intentPath, { sender: signed.address, signature })).status, 200);
-    const wrongInvoiceSignature = await signed.signMessage(paymentIntentMessage(order));
-    assert.equal((await req(intentPath, { sender: signed.address, signature: wrongInvoiceSignature })).status, 409);
-    const attacker = Wallet.createRandom();
-    assert.equal((await req(intentPath, { sender: attacker.address, signature: await attacker.signMessage(paymentIntentMessage(usdtInvoice.body.order)) })).status, 409);
+    assert.equal((await req('/api/public/stores/fixture/orders', { ...cart, asset: 'USDT', environment: 'testnet' })).status,400);
+    for (const field of ['polygonAddress','polygonAmoyAddress','polygonAmoyTestTokenContract','priceUsdtMicro']) {
+      assert.equal((await req('/api/seller/wallets',{currentPassword:account.password,[field]:'legacy'},session,'PUT')).status,400);
+    }
+    assert.equal((await req(`/api/public/orders/${created.body.order.publicToken}/intent`,{sender:'retired',signature:'retired'})).status,404);
     const throttled: number[] = [];
     for (let i = 0; i < 4; i++) throttled.push((await req('/api/auth/login', { email: 'unknown@example.test', password: 'Wrong#PasswordForTest!2026', totpCode: '000000' })).status);
     assert.deepEqual(throttled, [401, 401, 401, 429]); // Removing CAPTCHA does not remove brute-force protection.
@@ -190,8 +174,6 @@ test('native NIM sends a string memo once, reuses hash without replay, and block
     storage.set(`nimtera.payment:nimiq-testnet:${p.publicToken}`, JSON.stringify({ awaiting: true }));
     assert.equal((await requestNativeNimPayment(p)).ok, false); assert.equal(sends, 1);
     globals.window.nimiqPay.network = 'mainnet'; assert.equal((await requestNativeNimPayment(p)).ok, false); assert.equal(sends, 1);
-    globals.window.ethereum = { request: async ({ method }: { method: string }) => { assert.equal(method, 'eth_chainId'); return '0x89'; } };
-    assert.equal((await requestNativePolygonUsdtPayment({ recipient: '0x' + '3'.repeat(40), amountMicro: '100', network: 'polygon-amoy', tokenContract: '0x' + '2'.repeat(40), intentMessage: 'test', authorizeIntent: async () => assert.fail('wrong-chain signature must not run') })).ok, false);
   } finally {
     for (const [k, descriptor] of previous) { if (descriptor) Object.defineProperty(globals, k, descriptor); else delete globals[k]; }
   }
