@@ -351,31 +351,7 @@ export const CustomerStorefront: React.FC<CustomerStorefrontProps> = ({
                     <span className="text-[var(--teal-ink)]">{t.openStatus}</span>
                   </div>
 
-                  {/* Store Switcher to verify two-seller isolation */}
-                  <div className="inline-flex items-center gap-1 p-1 bg-[var(--surface-card)] border border-slate-600 rounded-lg text-xs">
-                    <button
-                      type="button"
-                      onClick={() => onSwitchStore('moonlight-cafe')}
-                      className={`px-2.5 py-1 rounded-md font-medium transition-colors whitespace-nowrap cursor-pointer ${
-                        store.slug === 'moonlight-cafe'
-                          ? 'bg-[var(--surface-raised)] text-[var(--gold-ink)]'
-                          : 'text-slate-300/80 hover:text-white'
-                      }`}
-                    >
-                      /s/moonlight-cafe
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => onSwitchStore('aurora-roasters')}
-                      className={`px-2.5 py-1 rounded-md font-medium transition-colors whitespace-nowrap cursor-pointer ${
-                        store.slug === 'aurora-roasters'
-                          ? 'bg-[var(--surface-raised)] text-[var(--gold-ink)]'
-                          : 'text-slate-300/80 hover:text-white'
-                      }`}
-                    >
-                      /s/aurora-roasters
-                    </button>
-                  </div>
+
                 </div>
               </div>
 
