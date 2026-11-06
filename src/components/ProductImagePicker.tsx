@@ -1,3 +1,4 @@
+import { optimizedPhoto } from '../lib/imageUpload';
 import { useEffect, useRef, useState } from 'react';
 import { PRODUCT_IMAGE_PRESETS } from '../lib/productImages';
 import type { SupportedLocale } from '../lib/i18n';
@@ -11,22 +12,10 @@ const COPY:Record<SupportedLocale,{title:string;upload:string;busy:string;hint:s
  ms:{title:'Foto produk',upload:'Muat naik foto sendiri',busy:'Menyediakan dan memuat naik…',hint:'JPG, PNG atau WebP, sehingga 5 MB / 16 MP. Sehingga 100 foto muat naik setiap kedai. Foto dioptimumkan dan dipaparkan dalam katalog awam selepas produk disimpan.',examples:'Foto contoh — pilih satu atau muat naik sendiri',selected:'Foto dipilih',error:'Foto gagal dimuat naik. Gunakan JPG, PNG atau WebP sehingga 5 MB dan cuba lagi.'},
  ru:{title:'Фото товара',upload:'Загрузить своё фото',busy:'Обработка и загрузка…',hint:'JPG, PNG или WebP, до 5 МБ / 16 Мп. До 100 загрузок на магазин. Фото оптимизируется и появится в публичном каталоге после сохранения товара.',examples:'Примеры: выберите фото или загрузите своё',selected:'Выбранное фото',error:'Не удалось загрузить фото. Используйте JPG, PNG или WebP до 5 МБ и повторите попытку.'},
 };
-async function optimizedPhoto(file:File):Promise<string> {
-  if(!['image/jpeg','image/png','image/webp'].includes(file.type)||file.size>5*1024*1024)throw new Error('Unsupported photo');
-  const bitmap=await createImageBitmap(file);
-  try {
-    if(bitmap.width*bitmap.height>16000000)throw new Error('Photo resolution too large');
-    const canvas=document.createElement('canvas'),scale=Math.min(1,1024/Math.max(bitmap.width,bitmap.height));
-    canvas.width=Math.max(1,Math.round(bitmap.width*scale));canvas.height=Math.max(1,Math.round(bitmap.height*scale));canvas.getContext('2d')!.drawImage(bitmap,0,0,canvas.width,canvas.height);
-    let blob:Blob|null=null;
-    for(const quality of [.82,.7,.58,.45]) {blob=await new Promise<Blob|null>(resolve=>canvas.toBlob(resolve,'image/webp',quality));if(blob&&blob.size<=150000)break;}
-    if(!blob||blob.size>150000)throw new Error('Photo too complex');
-    return await new Promise((resolve,reject)=>{const reader=new FileReader();reader.onload=()=>resolve(String(reader.result));reader.onerror=reject;reader.readAsDataURL(blob!);});
-  } finally { bitmap.close(); }
-}
+
 export function ProductImagePicker({value,onChange,locale,token,onBusyChange}:{value:string;onChange:(url:string)=>void;locale:SupportedLocale;token:string|null;onBusyChange:(busy:boolean)=>void}) {
   const [busy,setBusy]=useState(false),[error,setError]=useState('');const alive=useRef(true),controller=useRef<AbortController|null>(null);const copy=COPY[locale];
-  useEffect(()=>()=>{alive.current=false;controller.current?.abort();onBusyChange(false);},[]);
+  useEffect(()=>{alive.current=true;return ()=>{alive.current=false;controller.current?.abort();onBusyChange(false);};},[]);
   const selected=PRODUCT_IMAGE_PRESETS.find(photo=>photo.url===value);
   return <section className="space-y-3" aria-label={copy.title}>
     <div className="flex items-start gap-3"><img data-testid="selected-product-photo" src={value} alt={copy.selected} className="w-20 h-20 rounded-xl object-cover border border-slate-500 shrink-0" /><div className="space-y-1 min-w-0"><p className="text-sm font-semibold text-slate-100">{copy.title}</p><p className="text-xs text-slate-300">{selected?.label || copy.selected}</p><label className={`inline-flex rounded-lg bg-teal-400 px-3 py-2 font-semibold text-xs text-slate-950 ${busy?'opacity-70':'cursor-pointer'}`}>

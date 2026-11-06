@@ -351,6 +351,7 @@ export const CustomerStorefront: React.FC<CustomerStorefrontProps> = ({
                 <div className="pt-2 flex flex-wrap items-center gap-3">
                   <div className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-[#0F3D3E]/85 border border-[#14B8A6]/60 text-[#F8FAFC] text-sm font-medium animate-pulse-glow">
                     <span className="w-2 h-2 rounded-full bg-[#2DD4BF] animate-ping" aria-hidden="true" />
+                    {store.logoUrl && <img src={store.logoUrl} alt={`${store.name} logo`} data-testid="customer-shop-logo" className="w-12 h-12 rounded-lg bg-white object-contain p-1 shrink-0"/>}
                     <span>{store.name}</span>
                     <span aria-hidden="true">·</span>
                     <span className="text-[#2DD4BF]">{t.openStatus}</span>

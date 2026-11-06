@@ -1,3 +1,5 @@
+import { CashierAudioSettings, useCashierAudioStatus } from './CashierAudioSettings';
+import { StoreLogoSettings } from './StoreLogoSettings';
 import { PRODUCT_IMAGE_PRESETS } from '../lib/productImages';
 import { ProductImagePicker } from './ProductImagePicker';
 import { COOKIE_SESSION, legacySellerToken, clearLegacySellerToken, sellerAuthHeaders } from '../lib/sellerSession';
@@ -60,6 +62,7 @@ export type SellerTab = 'counter' | 'orders' | 'products' | 'reports' | 'setting
 
 
 interface StoreRecord {
+  logoUrl?: string;
   slug: string;
   name: string;
   activeEnvironment?: NetworkEnvironment;
@@ -207,12 +210,12 @@ export const SellerConsole: React.FC<SellerConsoleProps> = ({
     setWalletFeedback(null);
   }, [locale]);
 
-  // Audio state
-  const [audioUnlocked, setAudioUnlocked] = useState(false);
-  const [audioMuted, setAudioMuted] = useState(false);
-  const [audioVolume, setAudioVolume] = useState(0.8);
-  const [voiceLocale, setVoiceLocale] = useState<SupportedLocale>(locale);
-  const [isPrimaryDevice, setIsPrimaryDevice] = useState(true);
+  // Audio preferences are scoped to the shop; browser unlock remains an explicit gesture.
+  const audioStatus=useCashierAudioStatus();
+  const {unlocked:audioUnlocked,muted:audioMuted}=audioStatus;
+  const audioActive=audioUnlocked&&!audioMuted&&audioStatus.volume>0&&audioStatus.isPrimaryDevice;
+  useEffect(()=>{if(store?.slug)cashierAudio.setScope(store.slug,store.voiceLocale||locale);else cashierAudio.stop();},[store?.slug]);
+  useEffect(()=>()=>cashierAudio.stop(),[]);
   const announcedEventsRef = useRef<Set<string>>(new Set());
   const sessionStartMsRef = useRef<number>(Date.now());
 
@@ -473,6 +476,7 @@ export const SellerConsole: React.FC<SellerConsoleProps> = ({
   };
 
   const handleLogout = async () => {
+    cashierAudio.stop();
     sessionRevision.current++;
     if (sessionToken) {
       await fetch('/api/auth/logout', {
@@ -724,7 +728,7 @@ export const SellerConsole: React.FC<SellerConsoleProps> = ({
         activeEnvironment: activeEnv,
         storeName: store?.name,
         defaultLocale: locale,
-        voiceLocale,
+        voiceLocale:audioStatus.voiceLocale,
       }),
     });
     const data = await resp.json();
@@ -1250,6 +1254,7 @@ export const SellerConsole: React.FC<SellerConsoleProps> = ({
                   onClick={() => store && onOpenStorefront(store.slug)}
                   className="inline-flex items-center gap-2 px-3 py-1.5 rounded-xl bg-[#1C2430] border border-slate-600 text-sm font-semibold text-[#F8FAFC] hover:border-slate-500 truncate cursor-pointer"
                 >
+                  {store?.logoUrl && <img src={store.logoUrl} alt="" data-testid="seller-shop-logo" className="w-9 h-9 rounded-lg bg-white object-contain p-1 shrink-0"/>}
                   <span className="truncate">{store?.name || 'Your shop'}</span>
                   <ExternalLink className="w-3.5 h-3.5 text-slate-300 shrink-0" />
                 </button>
@@ -1290,25 +1295,20 @@ export const SellerConsole: React.FC<SellerConsoleProps> = ({
             {/* Audio Quick-Unlock & Mute Button */}
             <button
               type="button"
-              onClick={() => {
-                if (!audioUnlocked) {
-                  cashierAudio.unlock();
-                  setAudioUnlocked(true);
-                  cashierAudio.playInvoiceReadyChime();
-                } else {
-                  const nextMute = !audioMuted;
-                  setAudioMuted(nextMute);
-                  cashierAudio.setConfig({ muted: nextMute });
-                }
+              onClick={async () => {
+                if (!audioActive) {
+                  cashierAudio.setConfig({muted:false,...(audioStatus.volume===0?{volume:.8}:{})});
+                  if(await cashierAudio.unlock())cashierAudio.playInvoiceReadyChime();
+                } else cashierAudio.setConfig({muted:true});
               }}
-              aria-label={audioUnlocked && !audioMuted ? 'Mute cashier audio' : 'Activate cashier audio'}
+              aria-label={audioActive ? 'Mute cashier audio' : 'Activate cashier audio'}
               className={`w-9 h-9 rounded-full border flex items-center justify-center transition-colors cursor-pointer ${
-                audioUnlocked && !audioMuted
+                audioActive
                   ? 'bg-[#0F3D3E] border-[#14B8A6] text-[#2DD4BF]'
                   : 'bg-[#1C2430] border-slate-500 text-slate-300'
               }`}
             >
-              {audioUnlocked && !audioMuted ? (
+              {audioActive ? (
                 <Volume2 className="w-4 h-4" />
               ) : (
                 <VolumeX className="w-4 h-4" />
@@ -2446,6 +2446,7 @@ export const SellerConsole: React.FC<SellerConsoleProps> = ({
           ================================================================== */}
           {currentTab === 'settings' && (
             <div className="max-w-5xl mx-auto grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+              {store && <StoreLogoSettings logo={store.logoUrl} name={store.name} locale={locale} token={sessionToken} onSaved={setStore} />}
               {/* Left 7 Columns: Separated Testnet & Mainnet Wallet Profiles with Re-Auth + 2FA */}
               <div className="lg:col-span-7 bg-[#1C2430] border border-slate-600 rounded-2xl p-6 space-y-5">
                 <div>
@@ -2662,119 +2663,7 @@ export const SellerConsole: React.FC<SellerConsoleProps> = ({
                   )}
                 </div>
 
-                {/* Cashier Audio & Multi-Language Voice Settings */}
-                <div className="bg-[#1C2430] border border-slate-600 rounded-2xl p-6 space-y-4">
-                  <h2 className="text-lg font-bold text-[#F8FAFC]">{t.audioSettingsTitle}</h2>
-
-                  <button
-                    type="button"
-                    onClick={() => {
-                      cashierAudio.unlock();
-                      setAudioUnlocked(true);
-                      cashierAudio.playInvoiceReadyChime();
-                    }}
-                    className="w-full py-2.5 px-4 rounded-xl bg-[#0F3D3E] border border-[#14B8A6] text-[#2DD4BF] font-semibold text-xs cursor-pointer"
-                  >
-                    {audioUnlocked ? '✓ Cashier Audio Active' : t.enableAudioBtn}
-                  </button>
-
-                  <div className="space-y-3 text-xs">
-                    <div>
-                      <label
-                        htmlFor="voice-lang-select"
-                        className="block text-slate-300 font-medium mb-1"
-                      >
-                        {t.voiceLanguageLabel} (Independent from UI language)
-                      </label>
-                      <select
-                        id="voice-lang-select"
-                        value={voiceLocale}
-                        onChange={(e) => {
-                          const next = e.target.value as SupportedLocale;
-                          setVoiceLocale(next);
-                          cashierAudio.setConfig({ voiceLocale: next });
-                        }}
-                        className="w-full bg-[#0B0F14] border border-slate-500 rounded-xl px-3 py-2 text-xs text-[#F8FAFC]"
-                      >
-                        {(Object.keys(LOCALE_METADATA) as SupportedLocale[]).map((loc) => (
-                          <option key={loc} value={loc}>
-                            {LOCALE_METADATA[loc].label} ({LOCALE_METADATA[loc].nativeReviewStatus})
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-
-                    <div>
-                      <label
-                        htmlFor="audio-volume-range"
-                        className="block text-slate-300 font-medium mb-1"
-                      >
-                        {t.volumeLabel}: {Math.round(audioVolume * 100)}%
-                      </label>
-                      <input
-                        id="audio-volume-range"
-                        type="range"
-                        min="0"
-                        max="1"
-                        step="0.05"
-                        value={audioVolume}
-                        onChange={(e) => {
-                          const v = parseFloat(e.target.value);
-                          setAudioVolume(v);
-                          cashierAudio.setConfig({ volume: v });
-                        }}
-                        className="w-full accent-[#14B8A6]"
-                      />
-                    </div>
-
-                    <label className="flex items-center gap-2 text-slate-300 cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={isPrimaryDevice}
-                        onChange={(e) => {
-                          setIsPrimaryDevice(e.target.checked);
-                          cashierAudio.setConfig({ isPrimaryDevice: e.target.checked });
-                        }}
-                        className="accent-[#14B8A6]"
-                      />
-                      <span>{t.primaryAudioDeviceLabel}</span>
-                    </label>
-
-                    <div className="grid grid-cols-1 gap-2 pt-2">
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setAudioUnlocked(true);
-                          cashierAudio.announcePaymentReady(
-                            activeEnv === 'testnet' ? '[TESTNET] 110 NIM (TESTNET)' : '110 NIM',
-                            activeEnv === 'testnet' ? '#T01' : '#024',
-                            true
-                          );
-                        }}
-                        className="py-2 px-3 rounded-xl bg-[#0B0F14] border border-slate-500 hover:border-slate-500 text-slate-200 font-medium cursor-pointer"
-                      >
-                        🔊 {t.testPaymentRequestVoice} ({activeEnv.toUpperCase()})
-                      </button>
-
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setAudioUnlocked(true);
-                          cashierAudio.announcePaymentConfirmed(
-                            activeEnv === 'testnet'
-                              ? '[TESTNET] 2.00 TEST TOKEN'
-                              : '2.00 USDT',
-                            activeEnv === 'testnet' ? '#T01' : '#024',
-                            true
-                          );
-                        }}
-                        className="py-2 px-3 rounded-xl bg-[#0B0F14] border border-slate-500 hover:border-slate-500 text-emerald-300 font-medium cursor-pointer"
-                      >
-                        🔊 {t.testPaymentConfirmedVoice} ({activeEnv.toUpperCase()})
-                      </button>
-                    </div>
-                  </div>
-                </div>
+                <CashierAudioSettings locale={locale} activeEnv={activeEnv} />
               </div>
             </div>
           )}

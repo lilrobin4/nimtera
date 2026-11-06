@@ -469,6 +469,17 @@ export async function createApp(options: { apiOnly?: boolean } = {}) {
     res.json({ store });
   });
 
+  app.patch('/api/seller/store-logo', requireSellerAuth, asyncRoute(async (req: AuthedRequest, res) => {
+    const owner=req.sellerSession!.storeSlug;
+    const store=db.stores.find(st=>st.slug===owner);
+    if(!store) {res.status(404).json({error:'Store not found.'});return;}
+    const logo=req.body.logoUrl;
+    if(typeof logo!=='string' || (logo!=='' && (!/^\/api\/product-images\/[a-f0-9]{32}\.webp$/.test(logo) || !await validProductImageUrl(logo,owner)))) {
+      res.status(400).json({error:'Upload a logo to your own shop first.'});return;
+    }
+    store.logoUrl=logo || undefined;store.updatedAt=new Date().toISOString();saveDatabase(db);res.json({store});
+  }));
+
   // 3. Seller Onboarding / New Store Registration
   app.post('/api/auth/register', asyncRoute(async (req, res) => {
     const ip = req.ip || 'local';

@@ -47,6 +47,16 @@ test('email/password/2FA login restores shop on reload, navigation, new tab and 
   await page.reload();await expect(page.locator(`img[src="${photo}"]`).first()).toBeVisible();
   const publicCatalog=await context.newPage();await publicCatalog.goto('/s/persistent-restaurant');
   await expect(publicCatalog.getByText('Merchant uploaded product',{exact:true})).toBeVisible();await expect(publicCatalog.locator(`img[src="${photo}"]`).first()).toBeVisible();await publicCatalog.close();
+  await page.goto('/seller/settings');
+  await page.getByTestId('shop-logo-upload').setInputFiles({name:'my-shop-logo.png',mimeType:'image/png',buffer:bytes});
+  await expect(page.getByText('Logo saved.',{exact:true})).toBeVisible();
+  await expect(page.getByTestId('shop-logo-preview')).toBeVisible();
+  const logo=await page.getByTestId('shop-logo-preview').getAttribute('src');
+  await page.reload();await expect(page.getByTestId('shop-logo-preview')).toHaveAttribute('src',logo!);
+  await expect(page.getByTestId('seller-shop-logo')).toHaveAttribute('src',logo!);
+  const logoCatalog=await context.newPage();await logoCatalog.goto('/s/persistent-restaurant');await expect(logoCatalog.getByTestId('customer-shop-logo')).toHaveAttribute('src',logo!);await logoCatalog.close();
+  await page.getByRole('button',{name:'Remove logo',exact:true}).click();await expect(page.getByText('Logo removed.',{exact:true})).toBeVisible();await page.reload();await expect(page.getByTestId('shop-logo-preview')).toHaveCount(0);
+  await page.goto('/seller/products');
   await page.getByTestId('product-photo-upload').setInputFiles({name:'unsafe.svg',mimeType:'image/svg+xml',buffer:Buffer.from('<svg/>')});
   await expect(page.getByRole('alert')).toContainText('Could not upload');
   const cookie=(await context.cookies()).find(c=>c.name==='nimtera_seller_session'); expect(cookie?.httpOnly).toBe(true);expect(cookie?.expires).toBeGreaterThan(Date.now()/1000);
