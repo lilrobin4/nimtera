@@ -1,3 +1,4 @@
+import { sellerAuthHeaders } from '../lib/sellerSession';
 import { useEffect, useState } from 'react';
 import QRCode from 'qrcode';
 
@@ -7,7 +8,7 @@ export function AuthenticatorEnrollment({ enrollment, token, onComplete, onCance
   return <main className="min-h-screen grid place-items-center bg-[#0B101C] text-white p-5"><form className="max-w-md w-full bg-[#131C2E] rounded-2xl p-6 space-y-4" onSubmit={async e => {
     e.preventDefault(); setBusy(true); setError('');
     try {
-      const r = await fetch('/api/auth/mfa/confirm', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: JSON.stringify({ totpCode: code }) });
+      const r = await fetch('/api/auth/mfa/confirm', { method: 'POST', headers: { 'Content-Type': 'application/json', ...sellerAuthHeaders(token) }, body: JSON.stringify({ totpCode: code }) });
       if (!r.ok) throw new Error((await r.json()).error || 'Enrollment failed');
       onComplete();
     } catch (err) { setError(err instanceof Error ? err.message : 'Enrollment failed'); } finally { setBusy(false); }

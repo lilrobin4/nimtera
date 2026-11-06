@@ -1,3 +1,4 @@
+import { COOKIE_SESSION, legacySellerToken, clearLegacySellerToken, sellerAuthHeaders } from '../lib/sellerSession';
 import { uiText, uiChoice, categoryCopy } from '../lib/uiLocale';
 import { AuthenticatorEnrollment } from './AuthenticatorEnrollment';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
@@ -131,9 +132,12 @@ export const SellerConsole: React.FC<SellerConsoleProps> = ({
   const t = TRANSLATIONS[locale] || TRANSLATIONS.en;
 
   // Session state
-  const [sessionToken, setSessionToken] = useState<string | null>(() =>
-    typeof window !== 'undefined' ? sessionStorage.getItem('nimtera_seller_token') : null
-  );
+  const [sessionToken, setSessionTokenState] = useState<string | null>(legacySellerToken);
+  const sessionRevision = useRef(0);
+  const setSessionToken = (token: string | null) => { sessionRevision.current++; setSessionTokenState(token); };
+  const [sessionChecked, setSessionChecked] = useState(false);
+  const [sessionRestoreError, setSessionRestoreError] = useState(false);
+  const [sessionRestoreAttempt, setSessionRestoreAttempt] = useState(0);
   const [sellerEmail, setSellerEmail] = useState<string>('');
   const [store, setStore] = useState<StoreRecord | null>(null);
   const [activeEnv, setActiveEnv] = useState<NetworkEnvironment>(DEFAULT_NETWORK_ENV);
@@ -159,7 +163,6 @@ export const SellerConsole: React.FC<SellerConsoleProps> = ({
   } | null>(null);
 
   // Login & Setup form state
-  const [loginStoreName, setLoginStoreName] = useState('');
   const [loginEmail, setLoginEmail] = useState('');
   const [loginPassword, setLoginPassword] = useState('');
   const [loginTotp, setLoginTotp] = useState('');
@@ -238,17 +241,19 @@ export const SellerConsole: React.FC<SellerConsoleProps> = ({
 
   const fetchDashboardData = async (tokenToUse = sessionToken) => {
     if (!tokenToUse) return;
+    const revision = sessionRevision.current;
     try {
       const resp = await fetch('/api/seller/dashboard', {
-        headers: { Authorization: `Bearer ${tokenToUse}` },
+        headers: { ...sellerAuthHeaders(tokenToUse) },
       });
+      if (revision !== sessionRevision.current) return;
       if (resp.status === 403) {
-        const r = await fetch('/api/auth/mfa/enrollment', { headers: { Authorization: `Bearer ${tokenToUse}` } });
+        const r = await fetch('/api/auth/mfa/enrollment', { headers: { ...sellerAuthHeaders(tokenToUse) } });
         if (r.ok) setEnrollment((await r.json()).enrollment);
         return;
       }
       if (resp.status === 401) {
-        sessionStorage.removeItem('nimtera_seller_token');
+        clearLegacySellerToken();
         setSessionToken(null);
     setEnrollment(null);
         onNavigateTab('login');
@@ -311,11 +316,40 @@ export const SellerConsole: React.FC<SellerConsoleProps> = ({
   };
 
   useEffect(() => {
-    if (!sessionToken) return;
-    fetchDashboardData(sessionToken);
-    const interval = setInterval(() => fetchDashboardData(sessionToken), 4000);
-    return () => clearInterval(interval);
-  }, [sessionToken]);
+    let live = true;
+    setSessionRestoreError(false);
+    const restore = async () => {
+      try {
+        let response = await fetch('/api/auth/session', { credentials: 'same-origin', cache: 'no-store', headers: sellerAuthHeaders(legacySellerToken()) });
+        if (response.status === 401 && legacySellerToken()) response = await fetch('/api/auth/session', { credentials: 'same-origin', cache: 'no-store' });
+        if (!live) return;
+        if (response.status === 401) { clearLegacySellerToken(); setSessionToken(null); setSessionChecked(true); return; }
+        if (!response.ok) throw new Error('Session service unavailable');
+        const data = await response.json();
+        if (!live) return;
+        clearLegacySellerToken(); setSessionToken(COOKIE_SESSION);
+        setSellerEmail(data.seller.email); setStore(data.store); setRestoNameDraft(data.store.name);
+        setActiveEnv(data.store.activeEnvironment || 'testnet');
+        if (!data.mfaVerified) {
+          const enrollmentResponse = await fetch('/api/auth/mfa/enrollment', { credentials: 'same-origin', cache: 'no-store' });
+          if (!enrollmentResponse.ok) throw new Error('Authenticator setup unavailable');
+          const enrollmentData = await enrollmentResponse.json();
+          if (!live) return; setEnrollment(enrollmentData.enrollment);
+        } else if (activeRoute === 'login' || activeRoute === 'setup') onNavigateTab('counter');
+        setSessionChecked(true);
+      } catch { if (live) setSessionRestoreError(true); }
+    };
+    void restore();
+    return () => { live = false; sessionRevision.current++; };
+  }, [sessionRestoreAttempt]);
+
+  useEffect(() => {
+    if (!sessionToken || !sessionChecked || enrollment) return;
+    let stopped = false; let timer: ReturnType<typeof setTimeout>;
+    const poll = async () => { await fetchDashboardData(sessionToken); if (!stopped) timer = setTimeout(poll, 4000); };
+    void poll();
+    return () => { stopped = true; clearTimeout(timer); };
+  }, [sessionToken, sessionChecked, enrollment]);
 
   const handleSwitchEnvironment = async (nextEnv: NetworkEnvironment) => {
     if (!sessionToken) return;
@@ -325,7 +359,7 @@ export const SellerConsole: React.FC<SellerConsoleProps> = ({
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
-          Authorization: `Bearer ${sessionToken}`,
+          ...sellerAuthHeaders(sessionToken),
         },
         body: JSON.stringify({ environment: nextEnv }),
       });
@@ -343,7 +377,7 @@ export const SellerConsole: React.FC<SellerConsoleProps> = ({
     if (!sessionToken) return;
     try {
       const resp = await fetch('/api/seller/mainnet-readiness', {
-        headers: { Authorization: `Bearer ${sessionToken}` },
+        headers: { ...sellerAuthHeaders(sessionToken) },
       });
       if (resp.ok) {
         const data = await resp.json();
@@ -366,7 +400,6 @@ export const SellerConsole: React.FC<SellerConsoleProps> = ({
           email: loginEmail,
           password: loginPassword,
           totpCode: loginTotp,
-          storeName: loginStoreName.trim(),
         }),
       });
       const data = await resp.json();
@@ -375,12 +408,12 @@ export const SellerConsole: React.FC<SellerConsoleProps> = ({
         setAuthLoading(false);
         return;
       }
-      sessionStorage.setItem('nimtera_seller_token', data.token);
-      setSessionToken(data.token);
+      clearLegacySellerToken();
+      setSessionToken(COOKIE_SESSION);
       setSellerEmail(data.seller.email);
       setStore(data.store);
       setActiveEnv(data.store?.activeEnvironment || 'testnet');
-      setRestoNameDraft(data.store?.name || loginStoreName.trim());
+      setRestoNameDraft(data.store?.name || '');
       setWalletNimInput(data.store?.nimiqAddress || '');
       setWalletPolyInput(data.store?.polygonAddress || '');
       setWalletTestnetNimInput(
@@ -392,7 +425,7 @@ export const SellerConsole: React.FC<SellerConsoleProps> = ({
       setWalletAmoyTokenContractInput(data.store?.polygonAmoyTestTokenContract || '');
       setAuthLoading(false);
       if (data.enrollment) { setEnrollment(data.enrollment); return; }
-      await fetchDashboardData(data.token);
+      await fetchDashboardData(COOKIE_SESSION);
       onNavigateTab('counter');
     } catch {
       setAuthError('Network error while signing in.');
@@ -408,14 +441,13 @@ export const SellerConsole: React.FC<SellerConsoleProps> = ({
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
-          Authorization: `Bearer ${sessionToken}`,
+          ...sellerAuthHeaders(sessionToken),
         },
         body: JSON.stringify({ storeName: restoNameDraft.trim() }),
       });
       if (resp.ok) {
         const data = await resp.json();
         setStore(data.store);
-        setLoginStoreName(data.store.name);
         setEditingRestoName(false);
       }
     } catch {
@@ -449,13 +481,13 @@ export const SellerConsole: React.FC<SellerConsoleProps> = ({
         setAuthLoading(false);
         return;
       }
-      sessionStorage.setItem('nimtera_seller_token', data.token);
-      setSessionToken(data.token);
+      clearLegacySellerToken();
+      setSessionToken(COOKIE_SESSION);
       setSellerEmail(data.seller.email);
       setStore(data.store);
       setAuthLoading(false);
       if (data.enrollment) { setEnrollment(data.enrollment); return; }
-      await fetchDashboardData(data.token);
+      await fetchDashboardData(COOKIE_SESSION);
       onNavigateTab('counter');
     } catch {
       setAuthError('Network error during store registration.');
@@ -464,13 +496,15 @@ export const SellerConsole: React.FC<SellerConsoleProps> = ({
   };
 
   const handleLogout = async () => {
+    sessionRevision.current++;
     if (sessionToken) {
       await fetch('/api/auth/logout', {
         method: 'POST',
-        headers: { Authorization: `Bearer ${sessionToken}` },
+        headers: { 'Content-Type': 'application/json', ...sellerAuthHeaders(sessionToken) },
+        body: JSON.stringify({}),
       }).catch(() => {});
     }
-    sessionStorage.removeItem('nimtera_seller_token');
+    clearLegacySellerToken();
     setSessionToken(null);
     setEnrollment(null);
     setStore(null);
@@ -573,7 +607,7 @@ export const SellerConsole: React.FC<SellerConsoleProps> = ({
       method: 'PATCH',
       headers: {
         'Content-Type': 'application/json',
-        Authorization: `Bearer ${sessionToken}`,
+        ...sellerAuthHeaders(sessionToken),
       },
       body: JSON.stringify({ fulfillmentStatus, manualPaymentNote }),
     });
@@ -634,7 +668,7 @@ export const SellerConsole: React.FC<SellerConsoleProps> = ({
       method,
       headers: {
         'Content-Type': 'application/json',
-        Authorization: `Bearer ${sessionToken}`,
+        ...sellerAuthHeaders(sessionToken),
       },
       body: JSON.stringify({
         name: newProdName,
@@ -665,7 +699,7 @@ export const SellerConsole: React.FC<SellerConsoleProps> = ({
     const resp = await fetch(`/api/seller/products/${encodeURIComponent(prodId)}`, {
       method: 'DELETE',
       headers: {
-        Authorization: `Bearer ${sessionToken}`,
+        ...sellerAuthHeaders(sessionToken),
       },
     });
     if (resp.ok) {
@@ -683,7 +717,7 @@ export const SellerConsole: React.FC<SellerConsoleProps> = ({
       method: 'PUT',
       headers: {
         'Content-Type': 'application/json',
-        Authorization: `Bearer ${sessionToken}`,
+        ...sellerAuthHeaders(sessionToken),
       },
       body: JSON.stringify({ available: !prod.available }),
     });
@@ -698,7 +732,7 @@ export const SellerConsole: React.FC<SellerConsoleProps> = ({
       method: 'PUT',
       headers: {
         'Content-Type': 'application/json',
-        Authorization: `Bearer ${sessionToken}`,
+        ...sellerAuthHeaders(sessionToken),
       },
       body: JSON.stringify({
         currentPassword: walletConfirmPass,
@@ -783,9 +817,11 @@ export const SellerConsole: React.FC<SellerConsoleProps> = ({
   // ============================================================================
   // UN-AUTHENTICATED VIEW: SELLER LOGIN OR ONBOARDING SETUP
   // ============================================================================
+  if (!sessionChecked) return <main className="min-h-screen bg-[#0B101C] text-slate-200 grid place-items-center p-6"><section role="status" className="space-y-4 text-center"><p>{sessionRestoreError ? uiChoice(locale, 'Koneksi sesi belum tersedia. Sesi Anda tidak dihapus.', 'Session connection is unavailable. Your session has not been cleared.') : uiChoice(locale, 'Memulihkan sesi toko…', 'Restoring your shop session…')}</p>{sessionRestoreError && <button className="rounded-xl bg-teal-400 text-slate-950 px-5 py-2" onClick={() => { setSessionRestoreError(false); setSessionRestoreAttempt(value => value + 1); }}>{uiChoice(locale, 'Coba lagi', 'Try again')}</button>}</section></main>;
+
   if (enrollment && sessionToken) return <AuthenticatorEnrollment enrollment={enrollment} token={sessionToken} onCancel={() => { void handleLogout(); }} onComplete={() => { setEnrollment(null); void fetchDashboardData(sessionToken); onNavigateTab('counter'); }} />;
 
-  if (!sessionToken || activeRoute === 'login' || activeRoute === 'setup') {
+  if (!sessionToken) {
     const isSetup = activeRoute === 'setup';
     return (
       <div className="min-h-screen bg-[#0B101C] text-[#F3F4F6] flex flex-col justify-between p-4 sm:p-8">
@@ -850,23 +886,6 @@ export const SellerConsole: React.FC<SellerConsoleProps> = ({
 
             {!isSetup ? (
               <form onSubmit={handleLoginSubmit} className="space-y-4">
-                <div className="p-3.5 rounded-2xl bg-[#182338] border border-[#DFC496]/60">
-                  <label
-                    htmlFor="seller-resto-name-input"
-                    className="block text-xs font-bold text-[#F3F4F6] mb-1"
-                  >{' '}{uiText(locale, "Nama Resto / Toko Anda")}{' '}</label>
-                  <input
-                    id="seller-resto-name-input"
-                    data-testid="seller-resto-name-input"
-                    type="text"
-                    required
-                    value={loginStoreName}
-                    onChange={(e) => setLoginStoreName(e.target.value)}
-                    placeholder={uiText(locale, "Contoh: Resto Nusantara / Moonlight Cafe")}
-                    className="w-full bg-[#131C2E] border border-slate-600 rounded-xl px-3.5 py-2.5 text-sm font-semibold text-[#F3F4F6]"
-                  />
-                  <p className="text-[11px] text-slate-300 mt-1">{' '}{uiText(locale, "Nama resto ini langsung tampil di halaman katalog pelanggan & kasir saat login.")}{' '}</p>
-                </div>
 
                 <div>
                   <label
@@ -1122,7 +1141,7 @@ export const SellerConsole: React.FC<SellerConsoleProps> = ({
   // ============================================================================
   // AUTHENTICATED SELLER WORKSPACE
   // ============================================================================
-  const currentTab: SellerTab = activeRoute;
+  const currentTab: SellerTab = activeRoute === 'login' || activeRoute === 'setup' ? 'counter' : activeRoute;
   const activeOrdersCount = orders.filter(
     (o) => o.fulfillmentStatus !== 'completed' && o.fulfillmentStatus !== 'canceled'
   ).length;

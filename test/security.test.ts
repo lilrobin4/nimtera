@@ -85,7 +85,7 @@ test('HTTP regression: no CAPTCHA dependency, private MFA, malformed bodies, no 
   };
   const req = async (route: string, body?: unknown, token?: string, method?: string) => {
     const response = await fetch(base + route, { method: method || (body ? 'POST' : 'GET'), headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) }, ...(body ? { body: JSON.stringify(body) } : {}) });
-    return { status: response.status, body: await response.json() };
+    return { status: response.status, body: await response.json(), headers: response.headers };
   };
   try {
     const account = { email: 'fixture@example.test', password: 'Private#TestPassword!2026', storeName: 'Fixture', storeSlug: 'fixture', nimiqAddress: recipient, polygonAddress: '0x' + '3'.repeat(40) };
@@ -111,7 +111,23 @@ test('HTTP regression: no CAPTCHA dependency, private MFA, malformed bodies, no 
     assert.equal((await req(verifyPath, { txHash: {} })).status, 400);
     assert.equal((await req('/api/auth/security-status')).status, 200); // process is alive
     assert.equal((await req('/api/auth/login', { ...account, totpCode: '999999' })).status, 401);
-    assert.equal((await req('/api/auth/login', { ...account, totpCode: generateTotpCode(data.sellers[0].totpSecretHex) })).status, 200);
+    const loggedIn = await req('/api/auth/login', { email:account.email, password:account.password, totpCode:generateTotpCode(data.sellers[0].totpSecretHex), storeName:'Login must not rename the shop' });
+    assert.equal(loggedIn.status,200); assert.equal(loggedIn.body.store.name,'Fixture');
+    const setCookie=loggedIn.headers.get('set-cookie')!;
+    assert.match(setCookie,/HttpOnly/); assert.match(setCookie,/SameSite=Lax/); assert.match(setCookie,/Max-Age=/); assert.ok(Number(setCookie.match(/Max-Age=(\d+)/)![1])<=28800); assert.doesNotMatch(setCookie,/Domain=/);
+    const cookie=setCookie.split(';')[0];
+    for (let i=0;i<3;i++) {
+      const restored=await fetch(base+'/api/auth/session',{headers:{Cookie:cookie}});
+      assert.equal(restored.status,200); const sessionData=await restored.json();
+      assert.equal(sessionData.store.name,'Fixture'); assert.equal(sessionData.mfaVerified,true); assert.equal(sessionData.token,undefined);
+    }
+    const crossOrigin=await fetch(base+'/api/auth/logout',{method:'POST',headers:{Cookie:cookie,Origin:'https://attacker.invalid','Content-Type':'application/json'},body:'{}'});
+    assert.equal(crossOrigin.status,403);
+    assert.equal((await fetch(base+'/api/seller/dashboard',{headers:{Cookie:cookie}})).status,200);
+    const loggedOut=await fetch(base+'/api/auth/logout',{method:'POST',headers:{Cookie:cookie,'Content-Type':'application/json'},body:'{}'});
+    assert.equal(loggedOut.status,200); assert.match(loggedOut.headers.get('set-cookie')!,/Expires=Thu, 01 Jan 1970/);
+    assert.equal((await fetch(base+'/api/auth/session',{headers:{Cookie:cookie}})).status,401);
+
     const second = await req('/api/auth/register', { ...account, email: 'other@example.test', storeSlug: 'other' });
     const secondData = JSON.parse(fs.readFileSync(process.env.NIMTERA_DATA_FILE!, 'utf8'));
     await req('/api/auth/mfa/confirm', { totpCode: generateTotpCode(secondData.sellers[1].totpSecretHex) }, second.body.token);

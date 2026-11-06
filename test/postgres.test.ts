@@ -87,11 +87,11 @@ test('original application: registration, MFA, products and orders survive disti
   globalThis.fetch = async (url,opts) => { if (String(url).includes('challenges.cloudflare.com')) assert.fail('CAPTCHA must not be contacted'); return nativeFetch(url,opts); };
   const req = async (path: string, body?: unknown, token?: string, method?: string) => {
     const r = await fetch(base+path,{method:method || (body ? 'POST':'GET'), headers:{'Content-Type':'application/json',...(token ? {Authorization:`Bearer ${token}`} : {})},...(body ? {body:JSON.stringify(body)} : {})});
-    return { status:r.status, body:await r.json() };
+    return { status:r.status, body:await r.json(), headers:r.headers };
   };
   try {
     const registered = await req('/api/auth/register',{email:'durable@example.test',password:'Fixture#DurablePassword!2026',storeName:'Durable shop',storeSlug:'durable-shop',nimiqAddress:createValidNimiqAddress('00000000000000000000000000000000')});
-    assert.equal(registered.status,201); const token = registered.body.token;
+    assert.equal(registered.status,201); const token = registered.body.token; const cookie=registered.headers.get('set-cookie')!.split(';')[0];
     assert.equal((await req('/api/seller/dashboard',undefined,token)).status,403);
     const state = await f.state();
     const code = generateTotpCode(state.database.sellers[0].totpSecretHex);
@@ -108,10 +108,16 @@ test('original application: registration, MFA, products and orders survive disti
     // Simulate another cold application instance; durable state, not module fallbacks, supplies the account.
     appB = await createApp({apiOnly:true}); alternate = true;
     assert.equal((await req('/api/seller/dashboard',undefined,token)).status,200);
+    for (let i=0;i<3;i++) {
+      const response=await fetch(base+'/api/auth/session',{headers:{Cookie:cookie}});
+      assert.equal(response.status,200); const restored=await response.json();
+      assert.equal(restored.store.name,'Durable shop'); assert.equal(restored.mfaVerified,true);
+    }
     assert.equal((await f.state()).database.orders.length,1);
     assert.equal((await f.state()).sessions.length,1);
     assert.equal((await req('/api/auth/logout',{},token)).status,200);
     assert.equal((await req('/api/seller/dashboard',undefined,token)).status,401);
+    assert.equal((await fetch(base+'/api/auth/session',{headers:{Cookie:cookie}})).status,401);
   } finally { globalThis.fetch = nativeFetch; await new Promise<void>(r => http.close(() => r())); await f.db.close(); }
 });
 
@@ -153,4 +159,15 @@ test('Supabase TLS verifies provider CA and hostname; URL parameters cannot disa
   }
   assert.throws(() => databaseConnectionConfig('postgresql://fixture:fixture@aws-0-region.pooler.supabase.com:6543/postgres?sslmode=disable', true));
   assert.equal(databaseConnectionConfig('postgresql://fixture:fixture@example.invalid:5432/postgres?sslmode=verify-full', true).ssl, undefined);
+});
+
+test('durable session restoration prunes expired sessions without dropping valid sessions', async () => {
+  const f=await fixture();
+  try {
+    await transaction(f.pool,async state=>{
+      state.sessions.set('expired',{expiresAt:Date.now()-1,sellerId:'expired'});
+      state.sessions.set('valid',{expiresAt:Date.now()+3600000,sellerId:'valid'});
+    });
+    assert.deepEqual(await transaction(f.pool,async state=>Array.from(state.sessions.keys())),['valid']);
+  } finally { await f.db.close(); }
 });

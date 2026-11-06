@@ -230,9 +230,20 @@ interface AuthedRequest extends Request {
   sellerSession?: SessionRecord;
 }
 
+const SELLER_COOKIE = 'nimtera_seller_session';
+function cookieOptions(req: Request) {
+  return { httpOnly: true, secure: Boolean(process.env.VERCEL) || req.secure, sameSite: 'lax' as const, path: '/' };
+}
+function setSellerCookie(req: Request, res: Response, session: SessionRecord) {
+  res.cookie(SELLER_COOKIE, session.token, { ...cookieOptions(req), maxAge: Math.max(0, session.expiresAt - Date.now()) });
+}
+function sellerCookieToken(req: Request): string {
+  try { return decodeURIComponent((req.headers.cookie || '').match(/(?:^|;\s*)nimtera_seller_session=([^;]*)/)?.[1] || ''); } catch { return ''; }
+}
+
 function requireSession(req: AuthedRequest, res: Response, next: NextFunction) {
   const authHeader = req.headers.authorization || '';
-  const token = authHeader.startsWith('Bearer ') ? authHeader.slice(7).trim() : '';
+  const token = authHeader.startsWith('Bearer ') ? authHeader.slice(7).trim() : sellerCookieToken(req);
   if (!token) {
     res.status(401).json({ error: 'Authentication required. Please sign in to the Seller Console.' });
     return;
@@ -240,6 +251,7 @@ function requireSession(req: AuthedRequest, res: Response, next: NextFunction) {
   const session = sessions.get(token);
   if (!session || Date.now() > session.expiresAt || !verifySessionSignature(session)) {
     sessions.delete(token);
+    if (!authHeader) res.clearCookie(SELLER_COOKIE, cookieOptions(req));
     res.status(401).json({ error: 'Seller session expired or invalid. Please sign in again.' });
     return;
   }
@@ -302,6 +314,12 @@ export async function createApp(options: { apiOnly?: boolean } = {}) {
 
   app.use('/api', (req, res, next) => {
     res.setHeader('Cache-Control', 'no-store');
+    if (!['GET','HEAD','OPTIONS'].includes(req.method)) {
+      const origin = req.headers.origin;
+      if (req.headers['sec-fetch-site'] === 'cross-site' || (origin && (() => { try { return new URL(origin).host !== req.get('host'); } catch { return true; } })())) {
+        res.status(403).json({ error: 'Cross-origin account and order changes are not allowed.' }); return;
+      }
+    }
     if (['POST', 'PUT', 'PATCH'].includes(req.method)) {
       const b = req.body;
       if (!b || typeof b !== 'object' || Array.isArray(b)) { res.status(400).json({ error: 'JSON object required.' }); return; }
@@ -343,14 +361,13 @@ export async function createApp(options: { apiOnly?: boolean } = {}) {
       testnetOnly: true });
   });
 
-  // 2. Seller Login with 15+ char password policy, progressive backoff, 2FA TOTP, and Restaurant Name input
+  // 2. Seller login authenticates the existing account; it never renames its shop.
   app.post('/api/auth/login', asyncRoute(async (req, res) => {
     const ip = req.ip || 'local';
-    const { email, password, totpCode, storeName } = req.body as {
+    const { email, password, totpCode } = req.body as {
       email?: string;
       password?: string;
       totpCode?: string;
-      storeName?: string;
     };
 
     const cleanEmail = (email || '').trim().toLowerCase();
@@ -406,12 +423,7 @@ export async function createApp(options: { apiOnly?: boolean } = {}) {
     sessions.set(sessionToken, session);
 
     const store = db.stores.find((st) => st.slug === seller.storeSlug);
-    const cleanRestoName = (storeName || '').trim().slice(0, 60);
-    if (store && cleanRestoName) {
-      store.name = cleanRestoName;
-      store.updatedAt = new Date().toISOString();
-      saveDatabase(db);
-    }
+    setSellerCookie(req, res, session);
 
     res.json({
       token: sessionToken,
@@ -426,6 +438,15 @@ export async function createApp(options: { apiOnly?: boolean } = {}) {
       enrollment: seller.totpEnabled ? undefined : enrollmentDetails(seller),
     });
   }));
+
+  app.get('/api/auth/session', requireSession, (req: AuthedRequest, res) => {
+    const session = req.sellerSession!;
+    const seller = db.sellers.find(item => item.id === session.sellerId);
+    const store = db.stores.find(item => item.slug === session.storeSlug);
+    if (!seller || !store) { res.status(401).json({ error: 'Account session is unavailable. Please sign in again.' }); return; }
+    setSellerCookie(req, res, session); // Migrate valid legacy Bearer sessions without extending their expiry.
+    res.json({ seller: { email: seller.email, storeSlug: seller.storeSlug }, store, mfaVerified: session.mfaVerified, expiresAt: session.expiresAt });
+  });
 
   // Update Seller Restaurant / Store Name directly
   app.patch('/api/seller/store-name', requireSellerAuth, (req: AuthedRequest, res) => {
@@ -595,6 +616,7 @@ export async function createApp(options: { apiOnly?: boolean } = {}) {
       expiresAt: Date.now() + 8 * 60 * 60 * 1000,
     });
 
+    setSellerCookie(req, res, sessions.get(sessionToken)!);
     res.status(201).json({
       token: sessionToken,
       seller: {
@@ -626,6 +648,7 @@ export async function createApp(options: { apiOnly?: boolean } = {}) {
   });
 
   app.post('/api/auth/logout', requireSession, (req: AuthedRequest, res) => {
+    res.clearCookie(SELLER_COOKIE, cookieOptions(req));
     if (req.sellerSession) {
       sessions.delete(req.sellerSession.token);
     }
