@@ -21,7 +21,7 @@ test('public help cannot include deployment runbooks or misleading mainnet claim
   for (const help of Object.values(PUBLIC_HELP)) {
     assert.deepEqual(Object.keys(help.tabs),['overview','security','privacy']);
     assert.doesNotMatch(JSON.stringify(help), /StakeSafe|DNS|APP_URL|SESSION_SECRET|DATABASE_URL|Hosting Load Balancer|scrypt|RFC 6238|Supported Mainnet Assets|demoTotp/i);
-    for (const section of Object.values(help.content)) assert.equal(section.points.length,3);
+    for (const section of Object.values(help.content)) assert.equal(section.points.length,4);
   }
   assert.match(PUBLIC_HELP.en.content.overview.points.join(' '), /testnet only/);
 });

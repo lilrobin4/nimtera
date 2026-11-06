@@ -1,3 +1,4 @@
+import { fingerprint, normalizedWallet, newWalletChallenge, verifyWalletProof, type WalletChallenge } from './src/server/walletAuth.js';
 import { normalizeProductImage, saveProductImage, readProductImage, validProductImageUrl } from './src/server/productImages.js';
 import { requestState, scopedDatabase, scopedMap } from './src/server/requestState.js';
 import { readPaymentEvidence } from './src/server/payments.js';
@@ -62,6 +63,9 @@ export interface StoreRecord {
 }
 
 export interface SellerAccount {
+  walletAuthAddress?: string;
+  walletAuthPublicKey?: string;
+  walletAuthLinkedAt?: string;
   id: string;
   email: string;
   passwordSalt: string;
@@ -113,6 +117,7 @@ function hashPassword(password: string, saltHex?: string): { salt: string; hash:
 }
 
 function verifyPassword(password: string, salt: string, expectedHash: string): boolean {
+  if (!/^[a-f0-9]{128}$/i.test(expectedHash) || !/^[a-f0-9]{32}$/i.test(salt)) return false;
   const derived = crypto.scryptSync(password, salt, 64);
   const expectedBuf = Buffer.from(expectedHash, 'hex');
   if (derived.length !== expectedBuf.length) return false;
@@ -169,6 +174,7 @@ function saveDatabase(state: DatabaseState) {
 }
 
 const db = scopedDatabase(process.env.VERCEL ? emptyDatabase() : loadDatabase());
+const walletChallenges = scopedMap<string, WalletChallenge>('walletChallenges');
 const sessions = scopedMap<string, SessionRecord>('sessions');
 
 // Progressive rate limiting / backoff state per IP/identifier
@@ -350,6 +356,94 @@ export async function createApp(options: { apiOnly?: boolean } = {}) {
       testnetOnly: true });
   });
 
+  // Wallet authentication is off-chain. Mainnet wallet identity never enables mainnet payments.
+  function walletOrigin(req: Request): string | null {
+    const host=req.get('host') || '';
+    const local=!process.env.VERCEL && /^(localhost|127\.0\.0\.1)(:\d+)?$/.test(host);
+    let configured='';try{configured=new URL(process.env.APP_URL || 'https://nimtera.store').host;}catch{}
+    if(!local && !['nimtera.store','nimtera.vercel.app','nimtera-onad1ocryptos-projects.vercel.app',configured,process.env.VERCEL_URL].includes(host))return null;
+    return `${local?'http':'https'}://${host}`;
+  }
+  function flowCookie(req: Request): string {
+    return (req.headers.cookie || '').match(/(?:^|;\s*)nimtera_wallet_flow=([a-f0-9]{64})(?:;|$)/)?.[1] || '';
+  }
+  function bindingMatches(req:Request,record:WalletChallenge): boolean {
+    return Boolean(flowCookie(req)) && record.bindingHash===fingerprint(flowCookie(req)) && record.origin===walletOrigin(req) && record.expiresAt>Date.now();
+  }
+  function finishWalletLogin(req:Request,res:Response,seller:SellerAccount){
+    const token=createSignedSessionToken(seller.id,seller.storeSlug);
+    const session:SessionRecord={token,sellerId:seller.id,storeSlug:seller.storeSlug,email:seller.email,mfaVerified:seller.totpEnabled,expiresAt:Date.now()+8*60*60*1000};
+    sessions.set(token,session);setSellerCookie(req,res,session);
+    res.json({ok:true,storeSlug:seller.storeSlug});
+  }
+  function walletAudit(seller:SellerAccount,action:string){db.auditLogs.unshift({id:`aud_${crypto.randomBytes(6).toString('hex')}`,storeSlug:seller.storeSlug,sellerEmail:seller.email,action,details:'Account credential updated after ownership verification; payment recipients and existing invoices are unchanged.',createdAt:new Date().toISOString()});}
+  app.post('/api/auth/wallet/challenge',(req:AuthedRequest,res,next)=>{
+    const {purpose,address,network}=req.body;
+    if(!['login','register','link','password'].includes(purpose) || !['testnet','mainnet'].includes(network)){res.status(400).json({error:'Invalid wallet authentication request.'});return;}
+    const normalized=normalizedWallet(address),origin=walletOrigin(req);
+    if(!normalized || !origin){res.status(400).json({error:'A valid Nimiq address and approved NimTera origin are required.'});return;}
+    const create=()=>{
+      if(!checkPublicRateLimit('wallet-challenge:'+req.ip,20)){res.status(429).json({error:'Too many wallet requests. Wait a minute.'});return;}
+      for(const [id,entry]of walletChallenges)if(entry.expiresAt<=Date.now())walletChallenges.delete(id);
+      if(walletChallenges.size>=2000){res.status(503).json({error:'Wallet sign-in is busy. Try again later.'});return;}
+      const secret=crypto.randomBytes(32).toString('hex');
+      const record=newWalletChallenge({purpose,address:normalized,network,origin,bindingHash:fingerprint(secret),...(req.sellerSession?{sellerId:req.sellerSession.sellerId,sessionHash:fingerprint(req.sellerSession.token)}:{})});
+      walletChallenges.set(record.id,record);
+      res.cookie('nimtera_wallet_flow',secret,{...cookieOptions(req),sameSite:'strict',maxAge:5*60*1000});
+      res.json({challengeId:record.id,message:record.message,address:record.address,expiresAt:record.expiresAt});
+    };
+    if(['link','password'].includes(purpose))return requireSellerAuth(req,res,create);
+    create();
+  });
+  app.post('/api/auth/wallet/verify',(req:AuthedRequest,res)=>{
+    const record=walletChallenges.get(req.body.challengeId);
+    if(!record || record.purpose==='registration-ready' || !bindingMatches(req,record)){res.status(401).json({error:'Wallet request expired or belongs to another browser. Start again.'});return;}
+    // Failed proofs consume their nonce too; this map persists even when business state rolls back.
+    walletChallenges.delete(record.id);
+    if(!checkPublicRateLimit('wallet-verify:'+req.ip,20)){res.status(429).json({error:'Too many wallet proofs. Wait a minute.'});return;}
+    if(!verifyWalletProof(record.message,record.address,req.body.publicKey,req.body.signature)){res.status(401).json({error:'Signature or wallet address did not match. Choose the same wallet and try again.'});return;}
+    const key=String(req.body.publicKey).replace(/^0x/i,'').toLowerCase();
+    if(record.purpose==='register'){
+      if(db.sellers.some(s=>s.walletAuthAddress===record.address)){res.status(409).json({error:'This wallet is already linked. Use wallet sign-in instead.'});return;}
+      const ticket=crypto.randomBytes(32).toString('hex');
+      walletChallenges.set(ticket,{...record,id:ticket,purpose:'registration-ready',publicKey:key,expiresAt:Date.now()+5*60*1000});
+      res.cookie('nimtera_wallet_flow',flowCookie(req),{...cookieOptions(req),sameSite:'strict',maxAge:5*60*1000});
+      res.json({registrationTicket:ticket,address:record.address,network:record.network});return;
+    }
+    if(record.purpose==='login'){
+      const seller=db.sellers.find(s=>s.walletAuthAddress===record.address && s.walletAuthPublicKey===key);
+      if(!seller){res.status(401).json({error:'No account is linked to this wallet. Register or sign in with email and link it in Settings.'});return;}
+      if(seller.totpEnabled && !verifyTotpCode(seller.totpSecretHex,req.body.totpCode || '')){res.status(401).json({error:'Enter your authenticator code and restart wallet sign-in. 2FA is still required.'});return;}
+      finishWalletLogin(req,res,seller);return;
+    }
+    requireSellerAuth(req,res,()=>{
+      const session=req.sellerSession!,seller=db.sellers.find(s=>s.id===session.sellerId)!;
+      if(record.sellerId!==seller.id || record.sessionHash!==fingerprint(session.token)){res.status(401).json({error:'Wallet request belongs to a different account session.'});return;}
+      if(seller.totpEnabled && !verifyTotpCode(seller.totpSecretHex,req.body.totpCode || '')){res.status(401).json({error:'A valid authenticator code is required.'});return;}
+      if(record.purpose==='link'){
+        if(!verifyPassword(req.body.currentPassword || '',seller.passwordSalt,seller.passwordHash)){res.status(401).json({error:'Confirm your current password before linking a wallet.'});return;}
+        if(seller.walletAuthAddress){res.status(409).json({error:'A wallet is already linked. Remove it safely before linking another.'});return;}
+        if(db.sellers.some(s=>s.walletAuthAddress===record.address)){res.status(409).json({error:'This wallet is already linked to an account. Accounts are never merged automatically.'});return;}
+        seller.walletAuthAddress=record.address;seller.walletAuthPublicKey=key;seller.walletAuthLinkedAt=new Date().toISOString();walletAudit(seller,'LOGIN_WALLET_LINKED');
+      }else{
+        if(seller.walletAuthAddress!==record.address || seller.walletAuthPublicKey!==key){res.status(401).json({error:'Use the wallet already linked to this account.'});return;}
+        if(seller.passwordHash && !verifyPassword(req.body.currentPassword || '',seller.passwordSalt,seller.passwordHash)){res.status(401).json({error:'Your current password is required to change it.'});return;}
+        const check=validateSellerPassword(req.body.password || '');if(!check.valid){res.status(400).json({error:check.reason});return;}
+        const hashed=hashPassword(req.body.password);seller.passwordSalt=hashed.salt;seller.passwordHash=hashed.hash;walletAudit(seller,'EMAIL_PASSWORD_SET');
+      }
+      for(const [token,active]of sessions)if(active.sellerId===seller.id && token!==session.token)sessions.delete(token);
+      saveDatabase(db);res.json({ok:true});
+    });
+  });
+  app.post('/api/seller/wallet-login/unlink',requireSellerAuth,(req:AuthedRequest,res)=>{
+    const seller=db.sellers.find(s=>s.id===req.sellerSession!.sellerId)!;
+    if(!seller.passwordHash || !verifyPassword(req.body.currentPassword || '',seller.passwordSalt,seller.passwordHash)){res.status(401).json({error:'Set and confirm an email password first. Your last sign-in method cannot be removed.'});return;}
+    if(seller.totpEnabled && !verifyTotpCode(seller.totpSecretHex,req.body.totpCode || '')){res.status(401).json({error:'A valid authenticator code is required.'});return;}
+    delete seller.walletAuthAddress;delete seller.walletAuthPublicKey;delete seller.walletAuthLinkedAt;walletAudit(seller,'LOGIN_WALLET_REMOVED');
+    for(const [token,session]of sessions)if(session.sellerId===seller.id && token!==req.sellerSession!.token)sessions.delete(token);
+    saveDatabase(db);res.json({ok:true});
+  });
+
   // 2. Seller login authenticates the existing account; it never renames its shop.
   app.post('/api/auth/login', asyncRoute(async (req, res) => {
     const ip = req.ip || 'local';
@@ -468,13 +562,17 @@ export async function createApp(options: { apiOnly?: boolean } = {}) {
   }));
 
   // 3. Seller Onboarding / New Store Registration
-  app.post('/api/auth/register', asyncRoute(async (req, res) => {
+  app.post(['/api/auth/register','/api/auth/wallet/register'], asyncRoute(async (req, res) => {
     const ip = req.ip || 'local';
     if (!checkPublicRateLimit(ip, 20)) {
       res.status(429).json({ error: 'Rate limit exceeded. Try again in a minute.' });
       return;
     }
 
+    const isWalletRegistration=req.path==='/api/auth/wallet/register';
+    const walletRegistration=isWalletRegistration?walletChallenges.get(req.body.registrationTicket):undefined;
+    if(isWalletRegistration && (!walletRegistration || walletRegistration.purpose!=='registration-ready' || !bindingMatches(req,walletRegistration))){res.status(401).json({error:'Verify your wallet again before completing registration.'});return;}
+    if(walletRegistration && db.sellers.some(s=>s.walletAuthAddress===walletRegistration.address)){res.status(409).json({error:'Wallet already linked. Sign in instead; no accounts were merged.'});return;}
     const {
       email,
       password,
@@ -502,12 +600,12 @@ export async function createApp(options: { apiOnly?: boolean } = {}) {
       return;
     }
     if (db.sellers.some((s) => s.email.toLowerCase() === cleanEmail)) {
-      res.status(409).json({ error: 'An account with this email already exists.' });
+      res.status(409).json({ error: 'Email already registered. Sign in with email, then link the wallet in Settings; accounts are never merged automatically.' });
       return;
     }
 
     const passCheck = validateSellerPassword(password || '');
-    if (!passCheck.valid) {
+    if (!passCheck.valid && (!isWalletRegistration || Boolean(password))) {
       res.status(400).json({ error: passCheck.reason });
       return;
     }
@@ -538,12 +636,13 @@ export async function createApp(options: { apiOnly?: boolean } = {}) {
 
     if (!normalizedNimiq) { res.status(400).json({error:'A valid Nimiq testnet recipient wallet is required.'}); return; }
 
-    const { salt, hash } = hashPassword(password!);
+    const { salt, hash } = password ? hashPassword(password) : {salt:'',hash:''};
     const totpSecretHex = ''; // Generated only when the seller starts optional setup in Security.
     const sellerId = `sel_${crypto.randomBytes(8).toString('hex')}`;
     const nowIso = new Date().toISOString();
 
     const newSeller: SellerAccount = {
+      ...(walletRegistration?{walletAuthAddress:walletRegistration.address,walletAuthPublicKey:walletRegistration.publicKey,walletAuthLinkedAt:nowIso}:{}),
       id: sellerId,
       email: cleanEmail,
       passwordSalt: salt,
@@ -571,6 +670,7 @@ export async function createApp(options: { apiOnly?: boolean } = {}) {
       updatedAt: nowIso,
     };
 
+    if(walletRegistration)walletChallenges.delete(walletRegistration.id);
     db.sellers.push(newSeller);
     db.stores.push(newStore);
     db.orderSequenceByStore[cleanSlug] = 0;
@@ -610,7 +710,7 @@ export async function createApp(options: { apiOnly?: boolean } = {}) {
 
   app.get('/api/seller/security', requireSellerAuth, (req: AuthedRequest, res) => {
     const seller=db.sellers.find(s=>s.id===req.sellerSession!.sellerId)!;
-    res.setHeader('Cache-Control','no-store');res.json({totpEnabled:seller.totpEnabled});
+    res.setHeader('Cache-Control','no-store');res.json({totpEnabled:seller.totpEnabled,hasPassword:Boolean(seller.passwordHash),walletAuthAddress:seller.walletAuthAddress || null});
   });
 
   app.post('/api/auth/mfa/enrollment', requireSellerAuth, (req: AuthedRequest, res) => {
@@ -641,6 +741,7 @@ export async function createApp(options: { apiOnly?: boolean } = {}) {
 
   app.post('/api/auth/logout', requireSession, (req: AuthedRequest, res) => {
     res.clearCookie(SELLER_COOKIE, cookieOptions(req));
+    res.clearCookie('nimtera_wallet_flow',cookieOptions(req));
     if (req.sellerSession) {
       sessions.delete(req.sellerSession.token);
     }

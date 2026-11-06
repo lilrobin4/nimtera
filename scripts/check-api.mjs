@@ -1,7 +1,7 @@
 import { build } from 'esbuild';
 import { spawnSync } from 'node:child_process';
 await build({
-  entryPoints: ['api/index.ts', 'server.ts', 'src/server/postgres.ts', 'src/server/requestState.ts', 'src/server/supabaseCa.ts', 'src/server/payments.ts', 'src/server/productImages.ts', 'src/lib/productImages.ts', 'src/lib/domain.ts'],
+  entryPoints: ['api/index.ts', 'server.ts', 'src/server/postgres.ts', 'src/server/requestState.ts', 'src/server/supabaseCa.ts', 'src/server/payments.ts', 'src/server/walletAuth.ts', 'src/server/productImages.ts', 'src/lib/productImages.ts', 'src/lib/domain.ts'],
   outbase: '.', outdir: '.arena/api-check', bundle: false, format: 'esm', platform: 'node', target: 'node22',
 });
 const env = { ...process.env, NODE_ENV: 'test', VERCEL: '1' };

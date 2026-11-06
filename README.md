@@ -8,7 +8,7 @@ A NIM-only storefront, cashier and order-management app for independent sellers.
 
 - Learn the seller/customer flow from the six-language homepage guide and a 20-second silent interface demo with English captions. The video uses illustrative data, not a real payment.
 
-- Register a seller account and open the dashboard without mandatory 2FA. Optional authenticator setup is available in **Settings → Security**; once enabled, codes are required for sign-in and wallet changes.
+- Register with **email/password** in a browser or with a **signed Nimiq Pay wallet proof** inside Nimiq Pay. Both paths open the same seller account/store after linking; neither requires mandatory 2FA. Optional authenticator setup is available in **Settings → Security**; once enabled, codes are required for sign-in and wallet changes.
 - Choose **Day / Night** appearance across the homepage, seller workspace, catalog and checkout. Day uses ivory/gold; Night retains the approved graphite/gold palette. The explicit choice is saved on the device and synchronized between tabs.
 - Manage products, prices, availability and orders from the seller workspace, including the inline cashier menu editor.
 - Choose from **18 example product photos** or upload your own. Upload, replace or remove your shop logo in Settings; branding appears in the seller header and public storefront.
@@ -20,7 +20,7 @@ Photo uploads support JPG, PNG and WebP up to 5 MB / 16 MP, with optimization an
 
 ## Try the seller flow
 
-1. Open [seller registration](https://nimtera.store/seller/setup) and use your own email, a password of at least 15 characters, shop details and a matching testnet receiving address.
+1. Open [seller registration](https://nimtera.store/seller/setup). Choose email/password (15+ characters) or Nimiq Pay. The wallet path requires native wallet approval and a signed, expiring ownership proof before completing email, shop details and a separate NIM Testnet recipient. A password is optional for wallet-first registration; set one before email/PC login.
 2. Add products and optionally upload your shop logo. Registration does **not** require an authenticator.
 3. Share the storefront link or use the cashier. Check the invoice's network and recipient before testing a payment.
 4. Enable cashier audio with a tap. Choose the speech language/voice in Settings. Device/browser voices determine quality; if no matching language voice exists, a visible notice explains the chime-only fallback.
@@ -32,7 +32,11 @@ Photo uploads support JPG, PNG and WebP up to 5 MB / 16 MP, with optimization an
 
 The app includes the Nimiq Pay Mini App SDK payment path. Native sends require a verified matching Nimiq testnet host and supported browser capabilities. Unknown/mainnet hosts are blocked; unknown transaction outcomes must be checked before retrying.
 
-**Wallet binding, QR account pairing and wallet-signature seller login are not implemented yet.** Opening the app inside Nimiq Pay does not automatically authenticate a seller. Physical Nimiq Pay/testnet payment compatibility still needs on-device verification; do not treat the web deployment as proof of it.
+Wallet sign-in uses the official Mini App SDK's account access and message signing. Opening Nimiq Pay, listing an address or typing a payment recipient is **not** ownership proof. The server verifies the Nimiq signed-message Ed25519 signature and the public-key-derived address against a five-minute, one-use challenge bound to origin, purpose, browser flow and (for account changes) the current authenticated session. Failed proofs consume their nonce too; challenges persist across cloud instances.
+
+Email-first sellers link a wallet in **Settings → Wallet sign-in** with their current password and enabled 2FA. Wallet-first sellers set an email password there using a fresh proof from their linked wallet; password changes also require the old password when one exists. Removing a wallet requires an existing email password and enabled 2FA; the final sign-in method cannot be removed. An existing email or already-linked wallet is never automatically merged into another account. Optional 2FA remains enforced for wallet sign-in and sensitive changes once enabled. Credential changes revoke other sessions.
+
+Wallet authentication is off-chain and can use a known mainnet or testnet Nimiq Pay host. **It does not send NIM or enable mainnet payments.** The receiving address remains separate; a mainnet login wallet is not automatically copied into the testnet recipient. QR account pairing is not implemented. Physical Nimiq Pay authentication/payment compatibility still needs on-device verification; SDK simulations and web deployment are not proof of it.
 
 ## Development
 
@@ -51,7 +55,7 @@ Use `.env.example` for configuration. Never commit credentials or local data. Th
 
 ## Verification and beta limitations
 
-Latest application validation: **41 unit/security/SQL/theme tests**, TypeScript/build/API smoke, and **14 local browser tests** passed. Real local API tests cover registration without 2FA, later optional activation, durable sessions, products, logos, tenant isolation and preservation of retired-payment SQL history. Day/Night tests check saved preferences, cross-tab synchronization, all six theme labels, text contrast and phone-width layouts. Production frontend checks passed with fixture merchant APIs; they are not real production-account or physical payment tests.
+Latest application validation: **46 unit/security/SQL/theme/wallet tests**, TypeScript/build/API smoke, and **16 local browser tests** passed (wallet approval is simulated with real Ed25519 proofs, not a physical device). Real local API tests cover registration without 2FA, later optional activation, durable sessions, products, logos, tenant isolation and preservation of retired-payment SQL history. Day/Night tests check saved preferences, cross-tab synchronization, all six theme labels, text contrast and phone-width layouts. Production frontend checks passed with fixture merchant APIs; they are not real production-account or physical payment tests.
 
 ```sh
 npm run lint

@@ -6,6 +6,7 @@ import { requestState, type RequestState } from './requestState.js';
 export interface StateEnvelope {
   version: 1;
   database: any;
+  walletChallenges?: [string, any][];
   sessions: [string, any][];
   loginRateLimits: [string, any][];
   publicEndpointRateLimits: [string, any][];
@@ -81,14 +82,15 @@ function deserialize(e: StateEnvelope): RequestState {
   const now = Date.now();
   return {
     database: structuredClone(e.database),
+    walletChallenges: new Map((e.walletChallenges || []).filter(([,v])=>v.expiresAt > now)),
     sessions: new Map(e.sessions.filter(([,v]) => v.expiresAt > now)),
     loginRateLimits: new Map(e.loginRateLimits.filter(([,v]) => (v.updatedAtMs || v.lockedUntilMs || 0) > now - 3600000)),
     publicEndpointRateLimits: new Map(e.publicEndpointRateLimits.filter(([,v]) => v.windowStartMs > now - 60000)),
   };
 }
 function serialize(s: RequestState): StateEnvelope {
-  if ([s.sessions.size, s.loginRateLimits.size, s.publicEndpointRateLimits.size].some(n => n > 10000)) throw new Error('Testnet capacity reached');
-  return { version: 1, database: s.database, sessions: [...s.sessions], loginRateLimits: [...s.loginRateLimits], publicEndpointRateLimits: [...s.publicEndpointRateLimits] };
+  if ([s.walletChallenges?.size || 0, s.sessions.size, s.loginRateLimits.size, s.publicEndpointRateLimits.size].some(n => n > 10000)) throw new Error('Testnet capacity reached');
+  return { version: 1, database: s.database, walletChallenges: [...(s.walletChallenges || new Map())], sessions: [...s.sessions], loginRateLimits: [...s.loginRateLimits], publicEndpointRateLimits: [...s.publicEndpointRateLimits] };
 }
 /** One PostgreSQL row serializes mutations across instances. Intentionally a bounded testnet architecture, not a high-volume design. */
 export async function transaction<T>(sqlPool: SqlPool, action: (state: RequestState) => Promise<T>, shouldRestoreDatabase: (result: T) => boolean = () => false): Promise<T> {

@@ -1,3 +1,6 @@
+import {WalletAuthPanel} from './WalletAuthPanel';
+import {WalletAccountSettings} from './WalletAccountSettings';
+import {WALLET_COPY} from '../lib/walletCopy';
 import { CashierAudioSettings, useCashierAudioStatus } from './CashierAudioSettings';
 import { StoreLogoSettings } from './StoreLogoSettings';
 import { PRODUCT_IMAGE_PRESETS } from '../lib/productImages';
@@ -798,11 +801,14 @@ export const SellerConsole: React.FC<SellerConsoleProps> = ({
                   {isSetup ? t.sellerSetupTitle : t.sellerLoginTitle}
                 </h1>
                 <p className="text-xs text-slate-300 mt-1">
-                  Non-custodial merchant console · 15+ character password · optional 2FA
+                  {WALLET_COPY[locale].subtitle}
                 </p>
               </div>
               <Lock className="w-6 h-6 text-[var(--teal-ink)] shrink-0" />
             </div>
+
+            <WalletAuthPanel locale={locale} mode={isSetup ? 'register' : 'login'} />
+            <p className="text-xs text-slate-300 text-center">{WALLET_COPY[locale].emailRoute}</p>
 
             {/* Authentication security status */}
             <div className="p-3.5 rounded-xl bg-[var(--surface-base)] border border-slate-600/90 text-xs space-y-2">
@@ -2297,6 +2303,7 @@ export const SellerConsole: React.FC<SellerConsoleProps> = ({
           ================================================================== */}
           {currentTab === 'settings' && (
             <div className="max-w-5xl mx-auto grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+              <WalletAccountSettings locale={locale} />
               <SecuritySettings locale={locale} token={sessionToken} onEnabled={()=>setMfaEnabled(true)} />
               {store && <StoreLogoSettings logo={store.logoUrl} name={store.name} locale={locale} token={sessionToken} onSaved={setStore} />}
               {/* Left 7 Columns: Separated Testnet & Mainnet Wallet Profiles with Re-Auth + 2FA */}
