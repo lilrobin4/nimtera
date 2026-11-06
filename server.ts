@@ -1,7 +1,7 @@
 import { fingerprint, normalizedWallet, newWalletChallenge, verifyWalletProof, type WalletChallenge } from './src/server/walletAuth.js';
 import { normalizeProductImage, saveProductImage, readProductImage, validProductImageUrl } from './src/server/productImages.js';
 import { requestState, scopedDatabase, scopedMap } from './src/server/requestState.js';
-import { readPaymentEvidence } from './src/server/payments.js';
+import { readAddressPaymentEvidence, readPaymentEvidence } from './src/server/payments.js';
 import 'dotenv/config';
 import express, { type Request, type Response, type NextFunction } from 'express';
 import crypto from 'node:crypto';
@@ -936,6 +936,33 @@ export async function createApp(options: { apiOnly?: boolean } = {}) {
   // ============================================================================
   // SELLER PROTECTED ENDPOINTS (Enforces store isolation + Testnet/Mainnet separation)
   // ============================================================================
+
+  // A scanned address carries no invoice identity. Only the seller can explicitly bind a real receipt.
+  app.post('/api/seller/orders/:orderId/address-payment',requireSellerAuth,asyncRoute(async(req:AuthedRequest,res)=>{
+    const order=db.orders.find(o=>o.id===req.params.orderId && o.storeSlug===req.sellerSession!.storeSlug);
+    if(!order){res.status(404).json({error:'Order not found.'});return;}
+    if(!isActiveNimOrder(order)){res.status(410).json({error:'Only active NIM Testnet invoices can be reviewed.'});return;}
+    const hash=typeof req.body.txHash==='string'?req.body.txHash.trim().toLowerCase():'';
+    if(!/^[0-9a-f]{64}$/.test(hash)||req.body.acknowledgeOrderMatch!==true){res.status(400).json({error:'Provide the transaction hash and explicitly confirm that this payer paid this order.'});return;}
+    const seller=db.sellers.find(s=>s.id===req.sellerSession!.sellerId)!;
+    if(seller.totpEnabled&&!verifyTotpCode(seller.totpSecretHex,req.body.totpCode||'')){res.status(401).json({error:'A valid authenticator code is required.'});return;}
+    if(order.paymentStatus==='confirmed'){if(order.txHash?.toLowerCase()===hash){res.json({ok:true,order});return;}res.status(409).json({error:'Order already confirmed with another transaction.'});return;}
+    if(!checkPublicRateLimit('address-payment:'+req.ip,8)){res.status(429).json({error:'Too many receipt checks. Wait a minute.'});return;}
+    if(verifyingOrders.has(order.id)){res.status(409).json({error:'Verification already running. Retry later.'});return;}
+    verifyingOrders.add(order.id);
+    try{
+      const evidence=await readAddressPaymentEvidence(order,hash,rpcUrls);
+      const key=`${order.network}:${hash}`;
+      // Evidence has already checked inclusion time <= expiry. Reviewing later must not discard a timely payment.
+      const reviewTime=new Date(Math.min(Date.now(),Date.parse(order.expiresAt))).toISOString();
+      const outcome=reconcilePaymentVerification({order,evidence:{...evidence,txHash:key},claimedTxOrderMap:new Map(Object.entries(db.claimedTransactions)),nowIso:reviewTime});
+      if(outcome.paymentStatus!=='confirmed'||!outcome.shouldBindTxHash){res.status(409).json({error:outcome.reviewReason||'Receipt is not confirmed for this order yet.'});return;}
+      db.claimedTransactions[key]=order.id;order.txHash=hash;order.paymentStatus='confirmed';order.paymentBinding='seller-reviewed-address';order.verifiedAt=new Date().toISOString();
+      order.paymentReviewReason='On-chain receipt verified; seller explicitly matched this address payment to the order.';
+      db.auditLogs.unshift({id:`aud_${crypto.randomBytes(6).toString('hex')}`,storeSlug:order.storeSlug,sellerEmail:seller.email,action:'ADDRESS_PAYMENT_REVIEWED',details:`Seller matched transaction ${hash} to ${order.orderNumber}; exact amount, recipient, network, execution, inclusion time and no-replay verified on-chain.`,createdAt:order.verifiedAt});
+      saveDatabase(db);res.json({ok:true,order});
+    }finally{verifyingOrders.delete(order.id);}
+  }));
 
   app.get('/api/seller/dashboard', requireSellerAuth, asyncRoute(async (req: AuthedRequest, res) => {
     const storeSlug = req.sellerSession!.storeSlug;

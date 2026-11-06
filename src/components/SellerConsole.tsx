@@ -1,3 +1,4 @@
+import {AddressPaymentReview} from './AddressPaymentReview';
 import {WalletAuthPanel} from './WalletAuthPanel';
 import {WalletAccountSettings} from './WalletAccountSettings';
 import {WALLET_COPY} from '../lib/walletCopy';
@@ -1893,6 +1894,8 @@ export const SellerConsole: React.FC<SellerConsoleProps> = ({
                             Snapshot Wallet ({isTestOrd ? 'TESTNET' : 'MAINNET'}):{' '}
                             {ord.snapshotRecipient}
                           </div>
+
+                          {ord.asset==='NIM'&&ord.network==='nimiq-testnet'&&ord.environment!=='mainnet'&&ord.paymentStatus!=='confirmed'&&<AddressPaymentReview locale={locale} orderId={ord.id} token={sessionToken} totpRequired={mfaEnabled} onComplete={()=>{void fetchDashboardData();}}/>}
 
                           {ord.paymentReviewReason && (
                             <div className="text-xs text-amber-800 font-medium flex items-center gap-1.5">

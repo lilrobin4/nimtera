@@ -228,6 +228,7 @@ export interface OrderSnapshot {
   paymentStatus: PaymentStatus;
   paymentReviewReason?: string;
   manualPaymentNote?: string;
+  paymentBinding?: 'invoice-memo' | 'seller-reviewed-address';
   txHash?: string;
   paymentVerificationAttemptedAt?: string;
   payerAddress?: string;

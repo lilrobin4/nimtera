@@ -1,4 +1,4 @@
-import {checkoutTransport} from '../lib/checkoutTransport';
+import {addressPaymentQr,checkoutTransport} from '../lib/checkoutTransport';
 import {CHECKOUT_TRANSPORT_COPY} from '../lib/checkoutTransportCopy';
 import { uiText, uiChoice, categoryCopy } from '../lib/uiLocale';
 import React, { useEffect, useState } from 'react';
@@ -87,18 +87,10 @@ export const CustomerCheckout: React.FC<CustomerCheckoutProps> = ({
     return () => { stopped = true; clearTimeout(timer); controller.abort(); };
   }, [publicToken]);
 
-  // QR opens the exact invoice in the Mini App; never bypass memo/network guards.
+  // Wallet-scannable receiving-address QR. Amount entry and seller receipt review remain explicit.
   useEffect(() => {
     if (!order || !isActiveNimOrder(order)) return;
-    const origin =
-      typeof window !== 'undefined' ? window.location.origin : 'https://nimtera.store';
-    const isTestnetOrder =
-      order.environment === 'testnet' ||
-      order.network === 'nimiq-testnet';
-    const envParam = isTestnetOrder ? 'testnet' : 'mainnet';
-    const checkoutUrl = `${origin}/s/${order.storeSlug}/order/${order.publicToken}?net=${order.network}&env=${envParam}`;
-
-    const payload=checkoutTransport(checkoutUrl).qrPayload;
+    const payload=addressPaymentQr(order.snapshotRecipient);
 
     QRCode.toDataURL(payload, {
       width: 220,
@@ -483,7 +475,7 @@ export const CustomerCheckout: React.FC<CustomerCheckoutProps> = ({
                 {qrDataUrl ? (
                   <img
                     src={qrDataUrl}
-                    data-testid="checkout-open-qr"
+                    data-testid="checkout-address-qr"
                     alt={transportText.alt}
                     className="w-36 h-36 block"
                   />

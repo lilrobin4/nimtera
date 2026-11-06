@@ -58,3 +58,13 @@ for(const locale of Object.keys(PUBLIC_HELP) as SupportedLocale[]){
  PUBLIC_HELP[locale].content.security.points.push(WALLET_HELP[locale].security);
  PUBLIC_HELP[locale].content.privacy.points.push(WALLET_HELP[locale].privacy);
 }
+
+const ADDRESS_QR_HELP:Record<SupportedLocale,string>={
+ en:'For the address QR, scan with Nimiq Pay on Testnet, enter the exact displayed total and show the transaction hash to the cashier. The cashier must verify the on-chain receipt and match this payer to the order before confirming payment.',
+ id:'Untuk QR alamat, scan dengan Nimiq Pay pada Testnet, isi total persis yang ditampilkan, lalu tunjukkan hash transaksi kepada kasir. Kasir wajib memeriksa bukti on-chain dan kecocokan pembayar dengan pesanan sebelum mengonfirmasi pembayaran.',
+ 'zh-CN':'地址二维码请用 Nimiq Pay 测试网扫描，输入显示的准确总额，并向收银员出示交易哈希。收银员核验链上交易并确认付款人与订单匹配后才能确认付款。',
+ vi:'Với QR địa chỉ, quét bằng Nimiq Pay ở Testnet, nhập đúng tổng tiền và đưa mã giao dịch cho thu ngân. Thu ngân phải xác minh giao dịch trên chuỗi và khớp người trả với đơn trước khi xác nhận.',
+ ms:'Untuk QR alamat, imbas dengan Nimiq Pay pada Testnet, masukkan jumlah tepat dan tunjukkan hash transaksi kepada juruwang. Juruwang mesti mengesahkan resit pada rantaian dan memadankan pembayar dengan pesanan sebelum mengesahkan bayaran.',
+ ru:'QR адреса сканируйте в Nimiq Pay в Testnet, введите точную сумму и покажите хеш кассиру. Кассир обязан проверить перевод в блокчейне и связь плательщика с заказом перед подтверждением оплаты.',
+};
+for(const locale of Object.keys(PUBLIC_HELP) as SupportedLocale[])PUBLIC_HELP[locale].content.overview.points[0]+=' '+ADDRESS_QR_HELP[locale];
