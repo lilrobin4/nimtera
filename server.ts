@@ -922,7 +922,7 @@ export async function createApp(options: { apiOnly?: boolean; automaticPaymentRp
       return;
     }
     if (isActiveNimOrder(order) && order.paymentStatus === 'pending' && order.txHash && Date.now() - Date.parse(order.paymentVerificationAttemptedAt || '1970-01-01') >= 15000) await verifyOrderPayment(order, order.txHash);
-    if(order.matchingMode==='unique-amount-v1') {await discoverAutomaticPayments(db,rpcUrls,order.storeSlug,options.automaticPaymentRpc);saveDatabase(db);}
+    if((['unique-amount-v1','unique-amount-v2'].includes(order.matchingMode||''))) {await discoverAutomaticPayments(db,rpcUrls,order.storeSlug,options.automaticPaymentRpc);saveDatabase(db);}
     res.json({ order: sanitizeOrderForPublic(order) });
   }));
 

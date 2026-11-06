@@ -1898,7 +1898,7 @@ export const SellerConsole: React.FC<SellerConsoleProps> = ({
 
                           {ord.asset==='NIM'&&ord.network==='nimiq-testnet'&&ord.environment!=='mainnet'&&ord.paymentStatus!=='confirmed'&&<AddressPaymentReview locale={locale} orderId={ord.id} token={sessionToken} totpRequired={mfaEnabled} onComplete={()=>{void fetchDashboardData();}}/>}
 
-                          {ord.matchingMode==='unique-amount-v1'&&<div data-testid={`auto-status-${ord.id}`} className="text-xs text-slate-300 space-y-1"><p>{AUTO_PAYMENT_COPY[locale].code}: +{formatAssetAmount(ord.paymentCodeLuna!,'NIM','testnet')}</p><p>{ord.paymentStatus==='confirmed'?AUTO_PAYMENT_COPY[locale].confirmed:ord.autoMatchState==='unavailable'?AUTO_PAYMENT_COPY[locale].unavailable:ord.autoMatchState==='limited'?AUTO_PAYMENT_COPY[locale].limited:ord.autoMatchState==='needs_review'?AUTO_PAYMENT_COPY[locale].review:AUTO_PAYMENT_COPY[locale].watching}</p></div>}
+                          {(['unique-amount-v1','unique-amount-v2'].includes(ord.matchingMode||''))&&<div data-testid={`auto-status-${ord.id}`} className="text-xs text-slate-300 space-y-1"><p>{AUTO_PAYMENT_COPY[locale].code}: +{formatAssetAmount(ord.paymentCodeLuna!,'NIM','testnet')}</p><p>{ord.paymentStatus==='confirmed'?AUTO_PAYMENT_COPY[locale].confirmed:ord.autoMatchState==='unavailable'?AUTO_PAYMENT_COPY[locale].unavailable:ord.autoMatchState==='limited'?AUTO_PAYMENT_COPY[locale].limited:ord.autoMatchState==='needs_review'?AUTO_PAYMENT_COPY[locale].review:AUTO_PAYMENT_COPY[locale].watching}</p></div>}
 
                           {ord.paymentReviewReason && (
                             <div className="text-xs text-amber-800 font-medium flex items-center gap-1.5">

@@ -4,16 +4,16 @@ import assert from 'node:assert/strict';
 import {allocateUniqueAmount,discoverAutomaticPayments,type AutomaticPaymentDatabase} from '../src/server/automaticPayments';
 import {createValidNimiqAddress,type OrderSnapshot} from '../src/lib/domain';
 const now=Date.now(),recipient=createValidNimiqAddress('0'.repeat(32)),hash='a'.repeat(64),urls={'nimiq-testnet':'https://fixture.invalid'};
-function order(extra:Partial<OrderSnapshot>={}):OrderSnapshot{return {id:'auto-1',publicToken:'auto-token',orderNumber:'T001',storeSlug:'one',storeName:'One',asset:'NIM',environment:'testnet',network:'nimiq-testnet',snapshotRecipient:recipient,amountFormatted:'1.00001',...allocateUniqueAmount(100000n,recipient,'nimiq-testnet',[]),createdAt:new Date(now-10000).toISOString(),expiresAt:new Date(now+300000).toISOString(),paymentStatus:'unpaid',items:[],fulfillmentMode:'pickup',tableOrNote:'',fulfillmentStatus:'new',...extra};}
+function order(extra:Partial<OrderSnapshot>={}):OrderSnapshot{return {id:'auto-1',publicToken:'auto-token',orderNumber:'T001',storeSlug:'one',storeName:'One',asset:'NIM',environment:'testnet',network:'nimiq-testnet',snapshotRecipient:recipient,amountFormatted:'1.00001',amountBase:'100001',subtotalBase:'100000',paymentCodeLuna:'1',matchingMode:'unique-amount-v1',createdAt:new Date(now-10000).toISOString(),expiresAt:new Date(now+300000).toISOString(),paymentStatus:'unpaid',items:[],fulfillmentMode:'pickup',tableOrNote:'',fulfillmentStatus:'new',...extra};}
 function db(orders=[order()]):AutomaticPaymentDatabase{return {orders,claimedTransactions:{},auditLogs:[]};}
 const receipt={hash,networkId:5,to:recipient,value:100001,recipientData:'',blockNumber:8,confirmations:2,timestamp:now,executionResult:true};
 test('reservations include expired/legacy orders across shops; overlapping subtotals and historical amounts never collide',()=>{
- const old=order({matchingMode:undefined,paymentStatus:'expired',storeSlug:'other'});assert.equal(allocateUniqueAmount(100000n,recipient,'nimiq-testnet',[old]).amountBase,'100002');
- assert.equal(allocateUniqueAmount(99999n,recipient,'nimiq-testnet',[old]).amountBase,'100000');
- const retained=Array.from({length:999},(_,i)=>order({id:String(i),amountBase:String(100001+i)}));assert.throws(()=>allocateUniqueAmount(100000n,recipient,'nimiq-testnet',retained),/capacity/);
+ const old=order({matchingMode:undefined,paymentStatus:'expired',storeSlug:'other',amountBase:'101000'});assert.equal(allocateUniqueAmount(100000n,recipient,'nimiq-testnet',[old]).amountBase,'102000');
+ assert.equal(allocateUniqueAmount(99999n,recipient,'nimiq-testnet',[old]).amountBase,'102000');
+ const retained=Array.from({length:99},(_,i)=>order({id:String(i),amountBase:String(101000+i*1000)}));assert.throws(()=>allocateUniqueAmount(100000n,recipient,'nimiq-testnet',retained),/capacity/);
  assert.throws(()=>allocateUniqueAmount(BigInt(Number.MAX_SAFE_INTEGER),recipient,'nimiq-testnet',[]),/capacity/);
  assert.throws(()=>allocateUniqueAmount(0n,recipient,'nimiq-testnet',[]));assert.throws(()=>allocateUniqueAmount(1n,recipient,'nimiq-mainnet',[]));
- assert.equal(allocateUniqueAmount(100000n,createValidNimiqAddress('1'.repeat(32)),'nimiq-testnet',retained).amountBase,'100001');
+ assert.equal(allocateUniqueAmount(100000n,createValidNimiqAddress('1'.repeat(32)),'nimiq-testnet',retained).amountBase,'101000');
 });
 test('exact incoming payment confirms with no buyer hash, across shops, once; cooldown persists and legacy totals remain immutable',async()=>{
  const legacy=order({id:'legacy',matchingMode:undefined,amountBase:'8000000',storeSlug:'old'}),state=db([order(),order({id:'auto-2',storeSlug:'two',amountBase:'100002',paymentCodeLuna:'2'}),legacy]);let calls=0;
@@ -52,4 +52,10 @@ test('durable HTTP instances allocate concurrent orders globally, then seller po
  const stored=(await sql.query<{state:any}>("SELECT state FROM nimtera_testnet_state WHERE id='testnet'")).rows[0].state;assert.equal(stored.database.orders.filter((o:any)=>o.paymentStatus==='confirmed').length,1);assert.equal(stored.database.auditLogs.filter((a:any)=>a.action==='UNIQUE_AMOUNT_PAYMENT_CONFIRMED').length,1);assert.equal(stored.database.claimedTransactions['nimiq-testnet:'+hash],target.id);
  await transaction(pool,async s=>{s.database.paymentScanState={};});await request('/api/seller/dashboard',undefined,second.body.token);const again=(await sql.query<{state:any}>("SELECT state FROM nimtera_testnet_state WHERE id='testnet'")).rows[0].state;assert.equal(again.database.auditLogs.filter((a:any)=>a.action==='UNIQUE_AMOUNT_PAYMENT_CONFIRMED').length,1);
  }finally{await new Promise<void>(r=>server.close(()=>r()));await sql.close();}
+});
+test('two-decimal invoices reserve .01 increments and retain legacy five-decimal verification',async()=>{
+ const first=allocateUniqueAmount(4000000n,recipient,'nimiq-testnet',[]);assert.equal(first.amountBase,'4001000');assert.equal(first.paymentCodeLuna,'1000');assert.equal(first.matchingMode,'unique-amount-v2');
+ const state=db([order({...first})]);await discoverAutomaticPayments(state,urls,undefined,async()=>[{...receipt,value:4001000}],now);assert.equal(state.orders[0].paymentStatus,'confirmed');
+ const next=allocateUniqueAmount(4000000n,recipient,'nimiq-testnet',state.orders);assert.equal(next.amountBase,'4002000');
+ const fine=allocateUniqueAmount(4000001n,recipient,'nimiq-testnet',[]);assert.equal(BigInt(fine.amountBase)%1000n,0n);assert.equal(BigInt(fine.amountBase)-4000001n,BigInt(fine.paymentCodeLuna));
 });

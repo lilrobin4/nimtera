@@ -229,7 +229,7 @@ export interface OrderSnapshot {
   paymentReviewReason?: string;
   manualPaymentNote?: string;
   paymentBinding?: 'invoice-memo' | 'seller-reviewed-address' | 'unique-amount';
-  matchingMode?: 'unique-amount-v1';
+  matchingMode?: 'unique-amount-v1' | 'unique-amount-v2';
   subtotalBase?: string;
   paymentCodeLuna?: string;
   autoMatchCheckedAt?: string;

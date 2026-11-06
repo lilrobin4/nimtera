@@ -200,6 +200,6 @@ test('NIM-only upgrade preserves legacy SQL history and wallets while retiring e
     const state=(await f.state()).database;assert.deepEqual(state.orders,original.orders);assert.equal(state.products[0].priceUsdtMicro,'2000000');assert.equal(state.stores[0].polygonAddress,'original-mainnet-wallet');assert.equal(state.stores[0].polygonAmoyAddress,legacy.snapshotRecipient);assert.equal(state.stores[0].polygonAmoyTestTokenContract,legacy.snapshotTokenContract);assert.equal(rpcCalls,0);
     const cart={items:[{productId:'old-product',quantity:1}],asset:'USDT',environment:'testnet'};
     assert.equal((await req('/api/public/stores/archive-shop/orders',cart)).status,400);
-    const nim=await req('/api/public/stores/archive-shop/orders',{...cart,asset:'NIM'});assert.equal(nim.status,201);assert.equal(nim.body.order.amountFormatted,'2.00001 NIM (TESTNET)');assert.equal(nim.body.order.network,'nimiq-testnet');assert.equal(nim.body.order.snapshotTokenContract,null);
+    const nim=await req('/api/public/stores/archive-shop/orders',{...cart,asset:'NIM'});assert.equal(nim.status,201);assert.equal(nim.body.order.amountFormatted,'2.01 NIM (TESTNET)');assert.equal(nim.body.order.network,'nimiq-testnet');assert.equal(nim.body.order.snapshotTokenContract,null);
   }finally{globalThis.fetch=nativeFetch;await new Promise<void>(resolve=>http.close(()=>resolve()));await f.db.close();}
 });

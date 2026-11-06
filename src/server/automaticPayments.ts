@@ -1,17 +1,17 @@
 import crypto from 'node:crypto';
 import {isActiveNimOrder,reconcilePaymentVerification,type OrderSnapshot} from '../lib/domain.js';
 import {readAddressPaymentEvidence,rpcWatchCall,type RpcCall} from './payments.js';
-export const UNIQUE_CODE_MAX=999;
+export const UNIQUE_CODE_MAX=99;
 export const normalizeRecipient=(value:string)=>value.replace(/\s/g,'').toUpperCase();
 export function allocateUniqueAmount(subtotal:bigint,recipient:string,network:string,orders:OrderSnapshot[]){
  if(network!=='nimiq-testnet'||subtotal<=0n)throw new Error('Only positive NIM Testnet subtotals are supported.');
  const used=new Set(orders.filter(o=>o.network===network&&normalizeRecipient(o.snapshotRecipient)===normalizeRecipient(recipient)).map(o=>o.amountBase));
- for(let code=1;code<=UNIQUE_CODE_MAX;code++){const amount=subtotal+BigInt(code);if(amount<=BigInt(Number.MAX_SAFE_INTEGER)&&!used.has(amount.toString()))return {amountBase:amount.toString(),subtotalBase:subtotal.toString(),paymentCodeLuna:String(code),matchingMode:'unique-amount-v1' as const};}
+ for(let code=1;code<=UNIQUE_CODE_MAX;code++){const amount=((subtotal+999n)/1000n+BigInt(code))*1000n;if(amount<=BigInt(Number.MAX_SAFE_INTEGER)&&!used.has(amount.toString()))return {amountBase:amount.toString(),subtotalBase:subtotal.toString(),paymentCodeLuna:String(amount-subtotal),matchingMode:'unique-amount-v2' as const};}
  throw new Error('Unique payment-code capacity reached for this receiving address. No amount was reused.');
 }
 export interface AutomaticPaymentDatabase {orders:OrderSnapshot[];claimedTransactions:Record<string,string>;auditLogs:{id:string;storeSlug:string;sellerEmail:string;action:string;details:string;createdAt:string}[];paymentScanState?:Record<string,{checkedAt:number;status:'ok'|'unavailable'|'limited'}>}
 function validReservation(o:OrderSnapshot){
- try{return o.matchingMode==='unique-amount-v1'&&isActiveNimOrder(o)&&/^\d+$/.test(o.subtotalBase||'')&&/^\d+$/.test(o.paymentCodeLuna||'')&&BigInt(o.subtotalBase!)>0n&&BigInt(o.paymentCodeLuna!)>=1n&&BigInt(o.paymentCodeLuna!)<=BigInt(UNIQUE_CODE_MAX)&&BigInt(o.subtotalBase!)+BigInt(o.paymentCodeLuna!)===BigInt(o.amountBase);}catch{return false;}
+ try{return (o.matchingMode==='unique-amount-v1'||o.matchingMode==='unique-amount-v2')&&isActiveNimOrder(o)&&/^\d+$/.test(o.subtotalBase||'')&&/^\d+$/.test(o.paymentCodeLuna||'')&&BigInt(o.subtotalBase!)>0n&&BigInt(o.paymentCodeLuna!)>=1n&&(o.matchingMode==='unique-amount-v1'?BigInt(o.paymentCodeLuna!)<=999n:BigInt(o.amountBase)%1000n===0n&&BigInt(o.paymentCodeLuna!)>=1000n&&BigInt(o.paymentCodeLuna!)<=99999n)&&BigInt(o.subtotalBase!)+BigInt(o.paymentCodeLuna!)===BigInt(o.amountBase);}catch{return false;}
 }
 function millis(value:unknown){const n=Number(value);return Number.isFinite(n)&&n>0?(n<1e12?n*1000:n):NaN;}
 /** Read-only address history, called on cashier/invoice polling. No signing, broadcast or mainnet fallback.
