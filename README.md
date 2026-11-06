@@ -6,12 +6,12 @@ A Night Market-style storefront, cashier and order-management app for independen
 
 ## What you can do
 
-- Learn the seller/customer flow from the six-language homepage guide and a 20-second silent interface demo with Indonesian captions. The video uses illustrative data, not a real payment.
+- Learn the seller/customer flow from the six-language homepage guide and a 20-second silent interface demo with English captions. The video uses illustrative data, not a real payment.
 
 - Register a seller account and open the dashboard without mandatory 2FA. Optional authenticator setup is available in **Settings → Security**; once enabled, codes are required for sign-in and wallet changes.
 - Manage products, prices, availability and orders from the seller workspace, including the inline cashier menu editor.
 - Choose from **18 example product photos** or upload your own. Upload, replace or remove your shop logo in Settings; branding appears in the seller header and public storefront.
-- Share your shop's `/s/your-shop-slug` link. Customers can browse and order without creating an account.
+- Share your shop's `/s/your-shop-slug` link, or let customers choose items on your shop/restaurant’s cashier screen. Customers do not need an account.
 - Receive direct wallet payments with invoice-locked recipient, asset, amount and network details. A submitted hash is not payment confirmation: the server checks chain evidence.
 - Use six interface/voice languages: English, Indonesian, Simplified Chinese, Vietnamese, Malay and Russian. Cashier speech defaults to Indonesian for English/Indonesian setups and can be changed independently. Short confirmations read the actual amount, for example **“Pembayaran diterima, seribu nim.”**
 
