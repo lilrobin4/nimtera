@@ -99,6 +99,7 @@ export interface AuditLogEntry {
 }
 
 interface SessionRecord {
+  mfaEnrollmentExpiresAt?: number;
   mfaVerified: boolean;
   token: string;
   sellerId: string;
@@ -263,7 +264,7 @@ function requireSession(req: AuthedRequest, res: Response, next: NextFunction) {
 function requireSellerAuth(req: AuthedRequest, res: Response, next: NextFunction) {
   requireSession(req, res, () => {
     const seller = db.sellers.find(s => s.id === req.sellerSession?.sellerId);
-    if (!seller?.totpEnabled || !req.sellerSession?.mfaVerified) { res.status(403).json({ error: 'Complete authenticator enrollment first.' }); return; }
+    if (!seller || (seller.totpEnabled && !req.sellerSession?.mfaVerified)) { res.status(403).json({ error: 'Sign in with your authenticator code.' }); return; }
     next();
   });
 }
@@ -357,7 +358,7 @@ export async function createApp(options: { apiOnly?: boolean } = {}) {
 
   // 1. Honest Auth & Security Setup Status Endpoint
   app.get('/api/auth/security-status', (_req, res) => {
-    res.json({ passwordMinLength: 15, totp2faRequired: true, rateLimitActive: true,
+    res.json({ passwordMinLength: 15, totp2faRequired: false, totp2faAvailable: true, rateLimitActive: true,
       captchaRequired: false,
       testnetOnly: true });
   });
@@ -436,7 +437,6 @@ export async function createApp(options: { apiOnly?: boolean } = {}) {
         emailVerified: seller.emailVerified,
       },
       store,
-      enrollment: seller.totpEnabled ? undefined : enrollmentDetails(seller),
     });
   }));
 
@@ -446,7 +446,7 @@ export async function createApp(options: { apiOnly?: boolean } = {}) {
     const store = db.stores.find(item => item.slug === session.storeSlug);
     if (!seller || !store) { res.status(401).json({ error: 'Account session is unavailable. Please sign in again.' }); return; }
     setSellerCookie(req, res, session); // Migrate valid legacy Bearer sessions without extending their expiry.
-    res.json({ seller: { email: seller.email, storeSlug: seller.storeSlug }, store, mfaVerified: session.mfaVerified, expiresAt: session.expiresAt });
+    res.json({ seller: { email: seller.email, storeSlug: seller.storeSlug, totpEnabled: seller.totpEnabled }, store, mfaVerified: session.mfaVerified, expiresAt: session.expiresAt });
   });
 
   // Update Seller Restaurant / Store Name directly
@@ -569,7 +569,7 @@ export async function createApp(options: { apiOnly?: boolean } = {}) {
     }
 
     const { salt, hash } = hashPassword(password!);
-    const totpSecretHex = crypto.randomBytes(20).toString('hex');
+    const totpSecretHex = ''; // Generated only when the seller starts optional setup in Security.
     const sellerId = `sel_${crypto.randomBytes(8).toString('hex')}`;
     const nowIso = new Date().toISOString();
 
@@ -638,25 +638,38 @@ export async function createApp(options: { apiOnly?: boolean } = {}) {
         totpEnabled: newSeller.totpEnabled,
       },
       store: newStore,
-      enrollment: enrollmentDetails(newSeller),
     });
   }));
 
-  app.get('/api/auth/mfa/enrollment', requireSession, (req: AuthedRequest, res) => {
-    const seller = db.sellers.find(s => s.id === req.sellerSession?.sellerId);
-    if (!seller || seller.totpEnabled) { res.status(409).json({ error: 'Enrollment is not available.' }); return; }
-    res.setHeader('Cache-Control', 'no-store');
-    res.json({ enrollment: enrollmentDetails(seller) });
+  app.get('/api/seller/security', requireSellerAuth, (req: AuthedRequest, res) => {
+    const seller=db.sellers.find(s=>s.id===req.sellerSession!.sellerId)!;
+    res.setHeader('Cache-Control','no-store');res.json({totpEnabled:seller.totpEnabled});
   });
 
-  app.post('/api/auth/mfa/confirm', requireSession, (req: AuthedRequest, res) => {
-    const seller = db.sellers.find(s => s.id === req.sellerSession?.sellerId);
-    if (!seller || seller.totpEnabled || !verifyTotpCode(seller.totpSecretHex, req.body.totpCode || '')) { res.status(400).json({ error: 'Invalid enrollment code or enrollment already complete.' }); return; }
-    seller.totpEnabled = true;
-    req.sellerSession!.mfaVerified = true;
-    for (const [token, session] of sessions) if (session.sellerId === seller.id && !session.mfaVerified) sessions.delete(token);
-    saveDatabase(db);
-    res.json({ ok: true });
+  app.post('/api/auth/mfa/enrollment', requireSellerAuth, (req: AuthedRequest, res) => {
+    const seller=db.sellers.find(s=>s.id===req.sellerSession!.sellerId)!;
+    if(seller.totpEnabled){res.status(409).json({error:'2FA is already enabled.'});return;}
+    if(!checkPublicRateLimit('mfa-start:'+seller.id,5)){res.status(429).json({error:'Too many setup attempts. Please wait a minute.'});return;}
+    if(!verifyPassword(req.body.currentPassword || '',seller.passwordSalt,seller.passwordHash)){res.status(401).json({error:'Current password is incorrect.'});return;}
+    seller.totpSecretHex=crypto.randomBytes(20).toString('hex');
+    req.sellerSession!.mfaEnrollmentExpiresAt=Date.now()+10*60*1000;
+    saveDatabase(db);res.setHeader('Cache-Control','no-store');res.json({enrollment:enrollmentDetails(seller)});
+  });
+
+  app.get('/api/auth/mfa/enrollment', requireSellerAuth, (req: AuthedRequest, res) => {
+    const seller=db.sellers.find(s=>s.id===req.sellerSession!.sellerId)!;
+    if(seller.totpEnabled || !(req.sellerSession!.mfaEnrollmentExpiresAt!>Date.now())){res.status(409).json({error:'Start authenticator setup in Security settings first.'});return;}
+    res.setHeader('Cache-Control','no-store');res.json({enrollment:enrollmentDetails(seller)});
+  });
+
+  app.post('/api/auth/mfa/confirm', requireSellerAuth, (req: AuthedRequest, res) => {
+    const seller=db.sellers.find(s=>s.id===req.sellerSession!.sellerId)!;
+    if(!checkPublicRateLimit('mfa-confirm:'+seller.id,5)){res.status(429).json({error:'Too many code attempts. Please wait a minute.'});return;}
+    if(seller.totpEnabled || !(req.sellerSession!.mfaEnrollmentExpiresAt!>Date.now()) || !verifyTotpCode(seller.totpSecretHex,req.body.totpCode || '')){res.status(400).json({error:'Invalid code or setup expired. Start again in Security settings.'});return;}
+    seller.totpEnabled=true;req.sellerSession!.mfaVerified=true;delete req.sellerSession!.mfaEnrollmentExpiresAt;
+    for(const [token,session] of sessions)if(session.sellerId===seller.id && token!==req.sellerSession!.token)sessions.delete(token);
+    db.auditLogs.unshift({id:`aud_${crypto.randomBytes(6).toString('hex')}`,storeSlug:seller.storeSlug,sellerEmail:seller.email,action:'TWO_FACTOR_ENABLED',details:'Seller enabled authenticator 2FA in Security settings. Other sessions revoked.',createdAt:new Date().toISOString()});
+    saveDatabase(db);res.json({ok:true});
   });
 
   app.post('/api/auth/logout', requireSession, (req: AuthedRequest, res) => {
@@ -941,6 +954,7 @@ export async function createApp(options: { apiOnly?: boolean } = {}) {
 
     res.json({
       store,
+      security:{totpEnabled:db.sellers.find(s=>s.id===req.sellerSession!.sellerId)?.totpEnabled===true},
       products,
       orders,
       auditLogs,
@@ -1213,6 +1227,7 @@ export async function createApp(options: { apiOnly?: boolean } = {}) {
       voiceLocale?: SupportedLocale;
     };
 
+    if(!checkPublicRateLimit('wallet-reauth:'+seller.id,10)){res.status(429).json({error:'Too many wallet change attempts. Please wait a minute.'});return;}
     if (!verifyPassword(currentPassword || '', seller.passwordSalt, seller.passwordHash)) {
       res.status(401).json({
         error: 'Re-authentication failed: Current password is incorrect.',
@@ -1220,7 +1235,7 @@ export async function createApp(options: { apiOnly?: boolean } = {}) {
       return;
     }
 
-    if (!verifyTotpCode(seller.totpSecretHex, totpCode || '')) {
+    if (seller.totpEnabled && !verifyTotpCode(seller.totpSecretHex, totpCode || '')) {
       res.status(401).json({
         error: '2FA verification failed: Valid 6-digit Authenticator code is required to change wallets.',
       });

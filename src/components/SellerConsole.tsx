@@ -4,7 +4,7 @@ import { PRODUCT_IMAGE_PRESETS } from '../lib/productImages';
 import { ProductImagePicker } from './ProductImagePicker';
 import { COOKIE_SESSION, legacySellerToken, clearLegacySellerToken, sellerAuthHeaders } from '../lib/sellerSession';
 import { uiText, uiChoice, categoryCopy } from '../lib/uiLocale';
-import { AuthenticatorEnrollment } from './AuthenticatorEnrollment';
+import { SecuritySettings, optional2faHint } from './SecuritySettings';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   LayoutGrid,
@@ -145,7 +145,7 @@ export const SellerConsole: React.FC<SellerConsoleProps> = ({
   const [loginEmail, setLoginEmail] = useState('');
   const [loginPassword, setLoginPassword] = useState('');
   const [loginTotp, setLoginTotp] = useState('');
-  const [enrollment, setEnrollment] = useState<{ secret: string; uri: string } | null>(null);
+  const [mfaEnabled, setMfaEnabled] = useState(false);
   const [authError, setAuthError] = useState<string | null>(null);
   const [authLoading, setAuthLoading] = useState(false);
 
@@ -227,15 +227,10 @@ export const SellerConsole: React.FC<SellerConsoleProps> = ({
         headers: { ...sellerAuthHeaders(tokenToUse) },
       });
       if (revision !== sessionRevision.current) return;
-      if (resp.status === 403) {
-        const r = await fetch('/api/auth/mfa/enrollment', { headers: { ...sellerAuthHeaders(tokenToUse) } });
-        if (r.ok) setEnrollment((await r.json()).enrollment);
-        return;
-      }
       if (resp.status === 401) {
         clearLegacySellerToken();
         setSessionToken(null);
-    setEnrollment(null);
+
         onNavigateTab('login');
         return;
       }
@@ -245,6 +240,7 @@ export const SellerConsole: React.FC<SellerConsoleProps> = ({
       if (data.store?.activeEnvironment) {
         setActiveEnv(data.store.activeEnvironment);
       }
+      if(data.security)setMfaEnabled(data.security.totpEnabled===true);
       setProducts(data.products || []);
       setAuditLogs(data.auditLogs || []);
       setMetrics(data.metrics || null);
@@ -310,12 +306,8 @@ export const SellerConsole: React.FC<SellerConsoleProps> = ({
         clearLegacySellerToken(); setSessionToken(COOKIE_SESSION);
         setSellerEmail(data.seller.email); setStore(data.store); setRestoNameDraft(data.store.name);
         setActiveEnv(data.store.activeEnvironment || 'testnet');
-        if (!data.mfaVerified) {
-          const enrollmentResponse = await fetch('/api/auth/mfa/enrollment', { credentials: 'same-origin', cache: 'no-store' });
-          if (!enrollmentResponse.ok) throw new Error('Authenticator setup unavailable');
-          const enrollmentData = await enrollmentResponse.json();
-          if (!live) return; setEnrollment(enrollmentData.enrollment);
-        } else if (activeRoute === 'login' || activeRoute === 'setup') onNavigateTab('counter');
+        setMfaEnabled(data.seller.totpEnabled===true);
+        if (activeRoute === 'login' || activeRoute === 'setup') onNavigateTab('counter');
         setSessionChecked(true);
       } catch { if (live) setSessionRestoreError(true); }
     };
@@ -324,12 +316,12 @@ export const SellerConsole: React.FC<SellerConsoleProps> = ({
   }, [sessionRestoreAttempt]);
 
   useEffect(() => {
-    if (!sessionToken || !sessionChecked || enrollment) return;
+    if (!sessionToken || !sessionChecked) return;
     let stopped = false; let timer: ReturnType<typeof setTimeout>;
     const poll = async () => { await fetchDashboardData(sessionToken); if (!stopped) timer = setTimeout(poll, 4000); };
     void poll();
     return () => { stopped = true; clearTimeout(timer); };
-  }, [sessionToken, sessionChecked, enrollment]);
+  }, [sessionToken, sessionChecked]);
 
   const handleSwitchEnvironment = async (nextEnv: NetworkEnvironment) => {
     if (!sessionToken) return;
@@ -404,7 +396,7 @@ export const SellerConsole: React.FC<SellerConsoleProps> = ({
       );
       setWalletAmoyTokenContractInput(data.store?.polygonAmoyTestTokenContract || '');
       setAuthLoading(false);
-      if (data.enrollment) { setEnrollment(data.enrollment); return; }
+      setMfaEnabled(data.seller.totpEnabled===true);
       await fetchDashboardData(COOKIE_SESSION);
       onNavigateTab('counter');
     } catch {
@@ -466,7 +458,7 @@ export const SellerConsole: React.FC<SellerConsoleProps> = ({
       setSellerEmail(data.seller.email);
       setStore(data.store);
       setAuthLoading(false);
-      if (data.enrollment) { setEnrollment(data.enrollment); return; }
+      setMfaEnabled(data.seller.totpEnabled===true);
       await fetchDashboardData(COOKIE_SESSION);
       onNavigateTab('counter');
     } catch {
@@ -487,7 +479,7 @@ export const SellerConsole: React.FC<SellerConsoleProps> = ({
     }
     clearLegacySellerToken();
     setSessionToken(null);
-    setEnrollment(null);
+
     setStore(null);
     onNavigateTab('login');
   };
@@ -802,7 +794,7 @@ export const SellerConsole: React.FC<SellerConsoleProps> = ({
   // ============================================================================
   if (!sessionChecked) return <main className="min-h-screen bg-[#0B0F14] text-slate-200 grid place-items-center p-6"><section role="status" className="space-y-4 text-center"><p>{sessionRestoreError ? uiChoice(locale, 'Koneksi sesi belum tersedia. Sesi Anda tidak dihapus.', 'Session connection is unavailable. Your session has not been cleared.') : uiChoice(locale, 'Memulihkan sesi toko…', 'Restoring your shop session…')}</p>{sessionRestoreError && <button className="rounded-xl bg-teal-400 text-slate-950 px-5 py-2" onClick={() => { setSessionRestoreError(false); setSessionRestoreAttempt(value => value + 1); }}>{uiChoice(locale, 'Coba lagi', 'Try again')}</button>}</section></main>;
 
-  if (enrollment && sessionToken) return <AuthenticatorEnrollment enrollment={enrollment} token={sessionToken} onCancel={() => { void handleLogout(); }} onComplete={() => { setEnrollment(null); void fetchDashboardData(sessionToken); onNavigateTab('counter'); }} />;
+
 
   if (!sessionToken) {
     const isSetup = activeRoute === 'setup';
@@ -845,7 +837,7 @@ export const SellerConsole: React.FC<SellerConsoleProps> = ({
                   {isSetup ? t.sellerSetupTitle : t.sellerLoginTitle}
                 </h1>
                 <p className="text-xs text-slate-300 mt-1">
-                  Non-custodial merchant console · 15+ char password + TOTP 2FA enforced
+                  Non-custodial merchant console · 15+ character password · optional 2FA
                 </p>
               </div>
               <Lock className="w-6 h-6 text-[#14B8A6] shrink-0" />
@@ -859,10 +851,10 @@ export const SellerConsole: React.FC<SellerConsoleProps> = ({
                   <span>Security & Verification Status</span>
                 </span>
                 <span className="text-[13px] font-mono text-[#2DD4BF]">
-                  Password + authenticator enrollment
+                  Password · optional 2FA
                 </span>
               </div>
-              <p className="text-slate-300 text-[13px] leading-relaxed">Strong passwords, authenticator 2FA, and login-attempt limits protect seller accounts. No CAPTCHA challenge is required.</p>
+              <p className="text-slate-300 text-[13px] leading-relaxed">Strong passwords and login-attempt limits protect seller accounts. You can enable optional 2FA later in Settings → Security.</p>
 
 
             </div>
@@ -923,12 +915,12 @@ export const SellerConsole: React.FC<SellerConsoleProps> = ({
                     type="text"
                     inputMode="numeric"
                     pattern="\d{6}"
-                    required
                     value={loginTotp}
                     onChange={(e) => setLoginTotp(e.target.value)}
                     placeholder="6-digit code"
                     className="w-full bg-[#0B0F14] border border-slate-500 rounded-xl px-3.5 py-2.5 text-sm font-mono tracking-widest text-[#F8FAFC]"
                   />
+                  <p className="text-xs text-slate-300 mt-1">{optional2faHint(locale)}</p>
                 </div>
 
                 {authError && (
@@ -2446,6 +2438,7 @@ export const SellerConsole: React.FC<SellerConsoleProps> = ({
           ================================================================== */}
           {currentTab === 'settings' && (
             <div className="max-w-5xl mx-auto grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+              <SecuritySettings locale={locale} token={sessionToken} onEnabled={()=>setMfaEnabled(true)} />
               {store && <StoreLogoSettings logo={store.logoUrl} name={store.name} locale={locale} token={sessionToken} onSaved={setStore} />}
               {/* Left 7 Columns: Separated Testnet & Mainnet Wallet Profiles with Re-Auth + 2FA */}
               <div className="lg:col-span-7 bg-[#1C2430] border border-slate-600 rounded-2xl p-6 space-y-5">
@@ -2577,7 +2570,7 @@ export const SellerConsole: React.FC<SellerConsoleProps> = ({
                           className="w-full bg-[#1C2430] border border-slate-500 rounded-lg px-3 py-1.5 text-xs text-[#F8FAFC]"
                         />
                       </div>
-                      <div>
+                      {mfaEnabled && (                      <div>
                         <label className="block text-[13px] text-slate-300 mb-1">
                           2FA Authenticator Code
                         </label>
@@ -2589,7 +2582,7 @@ export const SellerConsole: React.FC<SellerConsoleProps> = ({
                           placeholder="6-digit TOTP"
                           className="w-full bg-[#1C2430] border border-slate-500 rounded-lg px-3 py-1.5 text-xs font-mono text-[#F8FAFC]"
                         />
-                      </div>
+                      </div>)}
                     </div>
                   </div>
 

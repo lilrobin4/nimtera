@@ -92,7 +92,9 @@ test('original application: registration, MFA, products and orders survive disti
   try {
     const registered = await req('/api/auth/register',{email:'durable@example.test',password:'Fixture#DurablePassword!2026',storeName:'Durable shop',storeSlug:'durable-shop',nimiqAddress:createValidNimiqAddress('00000000000000000000000000000000')});
     assert.equal(registered.status,201); const token = registered.body.token; const cookie=registered.headers.get('set-cookie')!.split(';')[0];
-    assert.equal((await req('/api/seller/dashboard',undefined,token)).status,403);
+    assert.equal((await req('/api/seller/dashboard',undefined,token)).status,200);
+    assert.equal(registered.body.enrollment,undefined);
+    assert.equal((await req('/api/auth/mfa/enrollment',{currentPassword:'Fixture#DurablePassword!2026'},token)).status,200);
     const state = await f.state();
     const code = generateTotpCode(state.database.sellers[0].totpSecretHex);
     assert.equal((await req('/api/auth/mfa/confirm',{totpCode:code},token)).status,200);
