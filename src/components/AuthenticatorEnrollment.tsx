@@ -5,7 +5,7 @@ import QRCode from 'qrcode';
 export function AuthenticatorEnrollment({ enrollment, token, onComplete, onCancel }: { enrollment: { secret: string; uri: string }; token: string; onComplete: () => void; onCancel: () => void }) {
   const [qr, setQr] = useState(''), [code, setCode] = useState(''), [error, setError] = useState(''), [busy, setBusy] = useState(false);
   useEffect(() => { let live = true; void QRCode.toDataURL(enrollment.uri, { width: 240, margin: 2 }).then(q => { if (live) setQr(q); }); return () => { live = false; }; }, [enrollment.uri]);
-  return <main className="min-h-screen grid place-items-center bg-[#0B101C] text-white p-5"><form className="max-w-md w-full bg-[#131C2E] rounded-2xl p-6 space-y-4" onSubmit={async e => {
+  return <main className="min-h-screen grid place-items-center bg-[#0B0F14] text-white p-5"><form className="max-w-md w-full bg-[#1C2430] rounded-2xl p-6 space-y-4" onSubmit={async e => {
     e.preventDefault(); setBusy(true); setError('');
     try {
       const r = await fetch('/api/auth/mfa/confirm', { method: 'POST', headers: { 'Content-Type': 'application/json', ...sellerAuthHeaders(token) }, body: JSON.stringify({ totpCode: code }) });

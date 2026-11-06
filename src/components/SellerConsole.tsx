@@ -817,14 +817,14 @@ export const SellerConsole: React.FC<SellerConsoleProps> = ({
   // ============================================================================
   // UN-AUTHENTICATED VIEW: SELLER LOGIN OR ONBOARDING SETUP
   // ============================================================================
-  if (!sessionChecked) return <main className="min-h-screen bg-[#0B101C] text-slate-200 grid place-items-center p-6"><section role="status" className="space-y-4 text-center"><p>{sessionRestoreError ? uiChoice(locale, 'Koneksi sesi belum tersedia. Sesi Anda tidak dihapus.', 'Session connection is unavailable. Your session has not been cleared.') : uiChoice(locale, 'Memulihkan sesi toko…', 'Restoring your shop session…')}</p>{sessionRestoreError && <button className="rounded-xl bg-teal-400 text-slate-950 px-5 py-2" onClick={() => { setSessionRestoreError(false); setSessionRestoreAttempt(value => value + 1); }}>{uiChoice(locale, 'Coba lagi', 'Try again')}</button>}</section></main>;
+  if (!sessionChecked) return <main className="min-h-screen bg-[#0B0F14] text-slate-200 grid place-items-center p-6"><section role="status" className="space-y-4 text-center"><p>{sessionRestoreError ? uiChoice(locale, 'Koneksi sesi belum tersedia. Sesi Anda tidak dihapus.', 'Session connection is unavailable. Your session has not been cleared.') : uiChoice(locale, 'Memulihkan sesi toko…', 'Restoring your shop session…')}</p>{sessionRestoreError && <button className="rounded-xl bg-teal-400 text-slate-950 px-5 py-2" onClick={() => { setSessionRestoreError(false); setSessionRestoreAttempt(value => value + 1); }}>{uiChoice(locale, 'Coba lagi', 'Try again')}</button>}</section></main>;
 
   if (enrollment && sessionToken) return <AuthenticatorEnrollment enrollment={enrollment} token={sessionToken} onCancel={() => { void handleLogout(); }} onComplete={() => { setEnrollment(null); void fetchDashboardData(sessionToken); onNavigateTab('counter'); }} />;
 
   if (!sessionToken) {
     const isSetup = activeRoute === 'setup';
     return (
-      <div className="min-h-screen bg-[#0B101C] text-[#F3F4F6] flex flex-col justify-between p-4 sm:p-8">
+      <div className="min-h-screen bg-[#0B0F14] text-[#F8FAFC] flex flex-col justify-between p-4 sm:p-8">
         <header className="max-w-5xl w-full mx-auto flex flex-wrap gap-3 items-center justify-between">
           <BrandLogo
             variant="champagne"
@@ -836,7 +836,7 @@ export const SellerConsole: React.FC<SellerConsoleProps> = ({
               aria-label="Language"
               value={locale}
               onChange={(e) => onChangeLocale(e.target.value as SupportedLocale)}
-              className="bg-[#131C2E] border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-[#F3F4F6]"
+              className="bg-[#1C2430] border border-slate-500 rounded-lg px-2.5 py-1.5 text-xs text-[#F8FAFC]"
             >
               {(Object.keys(LOCALE_METADATA) as SupportedLocale[]).map((loc) => (
                 <option key={loc} value={loc}>
@@ -847,7 +847,7 @@ export const SellerConsole: React.FC<SellerConsoleProps> = ({
             <button
               type="button"
               onClick={() => onOpenStorefront('moonlight-cafe')}
-              className="px-3.5 py-1.5 rounded-lg bg-[#131C2E] border border-slate-700 text-xs font-medium text-slate-300 hover:text-white cursor-pointer"
+              className="px-3.5 py-1.5 rounded-lg bg-[#1C2430] border border-slate-500 text-xs font-medium text-slate-300 hover:text-white cursor-pointer"
             >
               ← Storefront
             </button>
@@ -855,13 +855,13 @@ export const SellerConsole: React.FC<SellerConsoleProps> = ({
         </header>
 
         <main className="my-auto py-8 flex items-center justify-center">
-          <div className="w-full max-w-lg bg-[#131C2E] border border-slate-800 rounded-3xl p-6 sm:p-8 shadow-2xl space-y-6">
-            <div className="flex items-center justify-between border-b border-slate-800 pb-4">
+          <div className="w-full max-w-lg bg-[#1C2430] border border-slate-600 rounded-3xl p-6 sm:p-8 shadow-2xl space-y-6">
+            <div className="flex items-center justify-between border-b border-slate-600 pb-4">
               <div>
                 <h1 className="font-display text-2xl sm:text-3xl font-semibold text-[#DFC496]">
                   {isSetup ? t.sellerSetupTitle : t.sellerLoginTitle}
                 </h1>
-                <p className="text-xs text-slate-400 mt-1">
+                <p className="text-xs text-slate-300 mt-1">
                   Non-custodial merchant console · 15+ char password + TOTP 2FA enforced
                 </p>
               </div>
@@ -869,17 +869,17 @@ export const SellerConsole: React.FC<SellerConsoleProps> = ({
             </div>
 
             {/* Authentication security status */}
-            <div className="p-3.5 rounded-xl bg-[#0B101C] border border-slate-800/90 text-xs space-y-2">
+            <div className="p-3.5 rounded-xl bg-[#0B0F14] border border-slate-600/90 text-xs space-y-2">
               <div className="flex items-center justify-between">
                 <span className="font-semibold text-slate-200 flex items-center gap-1.5">
                   <ShieldCheck className="w-4 h-4 text-[#14B8A6]" />
                   <span>Security & Verification Status</span>
                 </span>
-                <span className="text-[11px] font-mono text-[#2DD4BF]">
+                <span className="text-[13px] font-mono text-[#2DD4BF]">
                   Password + authenticator enrollment
                 </span>
               </div>
-              <p className="text-slate-400 text-[11px] leading-relaxed">Strong passwords, authenticator 2FA, and login-attempt limits protect seller accounts. No CAPTCHA challenge is required.</p>
+              <p className="text-slate-300 text-[13px] leading-relaxed">Strong passwords, authenticator 2FA, and login-attempt limits protect seller accounts. No CAPTCHA challenge is required.</p>
 
 
             </div>
@@ -901,7 +901,7 @@ export const SellerConsole: React.FC<SellerConsoleProps> = ({
                     required
                     value={loginEmail}
                     onChange={(e) => setLoginEmail(e.target.value)}
-                    className="w-full bg-[#0B101C] border border-slate-700 rounded-xl px-3.5 py-2.5 text-sm text-[#F3F4F6]"
+                    className="w-full bg-[#0B0F14] border border-slate-500 rounded-xl px-3.5 py-2.5 text-sm text-[#F8FAFC]"
                   />
                 </div>
 
@@ -920,9 +920,9 @@ export const SellerConsole: React.FC<SellerConsoleProps> = ({
                     minLength={15}
                     value={loginPassword}
                     onChange={(e) => setLoginPassword(e.target.value)}
-                    className="w-full bg-[#0B101C] border border-slate-700 rounded-xl px-3.5 py-2.5 text-sm text-[#F3F4F6]"
+                    className="w-full bg-[#0B0F14] border border-slate-500 rounded-xl px-3.5 py-2.5 text-sm text-[#F8FAFC]"
                   />
-                  <p className="text-[11px] text-slate-400 mt-1">{t.passwordPolicyHint}</p>
+                  <p className="text-[13px] text-slate-300 mt-1">{t.passwordPolicyHint}</p>
                 </div>
 
                 <div>
@@ -944,7 +944,7 @@ export const SellerConsole: React.FC<SellerConsoleProps> = ({
                     value={loginTotp}
                     onChange={(e) => setLoginTotp(e.target.value)}
                     placeholder="6-digit code"
-                    className="w-full bg-[#0B101C] border border-slate-700 rounded-xl px-3.5 py-2.5 text-sm font-mono tracking-widest text-[#F3F4F6]"
+                    className="w-full bg-[#0B0F14] border border-slate-500 rounded-xl px-3.5 py-2.5 text-sm font-mono tracking-widest text-[#F8FAFC]"
                   />
                 </div>
 
@@ -1001,7 +1001,7 @@ export const SellerConsole: React.FC<SellerConsoleProps> = ({
                           );
                         }
                       }}
-                      className="w-full bg-[#0B101C] border border-slate-700 rounded-xl px-3 py-2 text-xs text-[#F3F4F6]"
+                      className="w-full bg-[#0B0F14] border border-slate-500 rounded-xl px-3 py-2 text-xs text-[#F8FAFC]"
                     />
                   </div>
                   <div>
@@ -1014,7 +1014,7 @@ export const SellerConsole: React.FC<SellerConsoleProps> = ({
                       placeholder="lantern-tea"
                       value={regStoreSlug}
                       onChange={(e) => setRegStoreSlug(e.target.value)}
-                      className="w-full bg-[#0B101C] border border-slate-700 rounded-xl px-3 py-2 text-xs font-mono text-[#F3F4F6]"
+                      className="w-full bg-[#0B0F14] border border-slate-500 rounded-xl px-3 py-2 text-xs font-mono text-[#F8FAFC]"
                     />
                   </div>
                 </div>
@@ -1029,7 +1029,7 @@ export const SellerConsole: React.FC<SellerConsoleProps> = ({
                     placeholder="owner@lanterntea.store"
                     value={regEmail}
                     onChange={(e) => setRegEmail(e.target.value)}
-                    className="w-full bg-[#0B101C] border border-slate-700 rounded-xl px-3 py-2 text-xs text-[#F3F4F6]"
+                    className="w-full bg-[#0B0F14] border border-slate-500 rounded-xl px-3 py-2 text-xs text-[#F8FAFC]"
                   />
                 </div>
 
@@ -1044,7 +1044,7 @@ export const SellerConsole: React.FC<SellerConsoleProps> = ({
                     placeholder="At least 15 characters..."
                     value={regPassword}
                     onChange={(e) => setRegPassword(e.target.value)}
-                    className="w-full bg-[#0B101C] border border-slate-700 rounded-xl px-3 py-2 text-xs text-[#F3F4F6]"
+                    className="w-full bg-[#0B0F14] border border-slate-500 rounded-xl px-3 py-2 text-xs text-[#F8FAFC]"
                   />
                 </div>
 
@@ -1057,7 +1057,7 @@ export const SellerConsole: React.FC<SellerConsoleProps> = ({
                     placeholder="NQ..."
                     value={regNimiqAddr}
                     onChange={(e) => setRegNimiqAddr(e.target.value)}
-                    className="w-full bg-[#0B101C] border border-slate-700 rounded-xl px-3 py-2 text-xs font-mono text-[#F3F4F6]"
+                    className="w-full bg-[#0B0F14] border border-slate-500 rounded-xl px-3 py-2 text-xs font-mono text-[#F8FAFC]"
                   />
                 </div>
 
@@ -1070,9 +1070,9 @@ export const SellerConsole: React.FC<SellerConsoleProps> = ({
                     placeholder="0x..."
                     value={regPolygonAddr}
                     onChange={(e) => setRegPolygonAddr(e.target.value)}
-                    className="w-full bg-[#0B101C] border border-slate-700 rounded-xl px-3 py-2 text-xs font-mono text-[#F3F4F6]"
+                    className="w-full bg-[#0B0F14] border border-slate-500 rounded-xl px-3 py-2 text-xs font-mono text-[#F8FAFC]"
                   />
-                  <p className="text-[11px] text-slate-400 mt-1">
+                  <p className="text-[13px] text-slate-300 mt-1">
                     TESTNET BETA ONLY: These initial addresses are saved to the Nimiq testnet / Polygon Amoy profiles, not mainnet. You may activate one asset first. Never enter seed phrases or private keys.
                   </p>
                 </div>
@@ -1121,7 +1121,7 @@ export const SellerConsole: React.FC<SellerConsoleProps> = ({
                       setAuthError(null);
                       onNavigateTab('login');
                     }}
-                    className="text-xs text-slate-400 hover:text-white cursor-pointer"
+                    className="text-xs text-slate-300 hover:text-white cursor-pointer"
                   >
                     ← Back to Seller Sign In
                   </button>
@@ -1131,7 +1131,7 @@ export const SellerConsole: React.FC<SellerConsoleProps> = ({
           </div>
         </main>
 
-        <footer className="text-center text-xs text-slate-400">
+        <footer className="text-center text-xs text-slate-300">
           NimTera — {t.independentNotice}
         </footer>
       </div>
@@ -1147,9 +1147,9 @@ export const SellerConsole: React.FC<SellerConsoleProps> = ({
   ).length;
 
   return (
-    <div className="min-h-screen bg-[#0B101C] text-[#F3F4F6] flex flex-col lg:flex-row">
+    <div className="min-h-screen bg-[#0B0F14] text-[#F8FAFC] flex flex-col lg:flex-row">
       {/* Left Sidebar Navigation */}
-      <aside className="w-full lg:w-60 bg-[#0E1525] border-b lg:border-b-0 lg:border-r border-slate-800/90 flex flex-col justify-between p-4 lg:p-5 shrink-0">
+      <aside className="w-full lg:w-60 bg-[#111820] border-b lg:border-b-0 lg:border-r border-slate-600/90 flex flex-col justify-between p-4 lg:p-5 shrink-0">
         <div className="space-y-6">
           <div className="flex items-center justify-between">
             <BrandLogo
@@ -1160,7 +1160,7 @@ export const SellerConsole: React.FC<SellerConsoleProps> = ({
             <button
               type="button"
               onClick={onOpenDocsModal}
-              className="lg:hidden text-xs text-slate-400 hover:text-white"
+              className="lg:hidden text-xs text-slate-300 hover:text-white"
             >
               {t.navPolicies}
             </button>
@@ -1194,7 +1194,7 @@ export const SellerConsole: React.FC<SellerConsoleProps> = ({
                   className={`flex items-center justify-between gap-3 px-3.5 py-2.5 rounded-xl text-sm font-medium transition-colors whitespace-nowrap shrink-0 cursor-pointer ${
                     active
                       ? 'bg-[#0F3D3E] text-[#2DD4BF] border border-[#14B8A6]/40'
-                      : 'text-slate-400 hover:text-[#F3F4F6] hover:bg-[#131C2E]'
+                      : 'text-slate-300 hover:text-[#F8FAFC] hover:bg-[#1C2430]'
                   }`}
                 >
                   <span className="flex items-center gap-3">
@@ -1213,14 +1213,14 @@ export const SellerConsole: React.FC<SellerConsoleProps> = ({
         </div>
 
         {/* Bottom Seller Profile & Storefront Link */}
-        <div className="hidden lg:flex flex-col gap-3 pt-6 border-t border-slate-800/80 text-xs">
-          <div className="flex items-center justify-between text-slate-400">
+        <div className="hidden lg:flex flex-col gap-3 pt-6 border-t border-slate-600/80 text-xs">
+          <div className="flex items-center justify-between text-slate-300">
             <span className="truncate">{sellerEmail || store?.slug}</span>
             <button
               type="button"
               onClick={handleLogout}
               aria-label={t.logoutBtn}
-              className="text-slate-400 hover:text-rose-400 cursor-pointer"
+              className="text-slate-300 hover:text-rose-400 cursor-pointer"
             >
               <LogOut className="w-4 h-4" />
             </button>
@@ -1229,7 +1229,7 @@ export const SellerConsole: React.FC<SellerConsoleProps> = ({
             <button
               type="button"
               onClick={() => onOpenStorefront(store.slug)}
-              className="w-full py-2 px-3 rounded-xl bg-[#131C2E] border border-slate-800 hover:border-slate-700 text-slate-300 flex items-center justify-between cursor-pointer"
+              className="w-full py-2 px-3 rounded-xl bg-[#1C2430] border border-slate-600 hover:border-slate-500 text-slate-300 flex items-center justify-between cursor-pointer"
             >
               <span className="truncate">/s/{store.slug}</span>
               <ExternalLink className="w-3.5 h-3.5 text-[#2DD4BF] shrink-0" />
@@ -1241,7 +1241,7 @@ export const SellerConsole: React.FC<SellerConsoleProps> = ({
       {/* Main Content Area */}
       <div className="flex-1 flex flex-col min-w-0">
         {/* Top Workspace Header */}
-        <header className="bg-[#0B101C] border-b border-slate-800/80 px-4 sm:px-8 py-3.5 flex items-center justify-between gap-4">
+        <header className="bg-[#0B0F14] border-b border-slate-600/80 px-4 sm:px-8 py-3.5 flex items-center justify-between gap-4">
           <div className="flex items-center gap-2.5 min-w-0">
             {editingRestoName ? (
               <form onSubmit={handleSaveRestoNameInline} className="flex items-center gap-2">
@@ -1251,7 +1251,7 @@ export const SellerConsole: React.FC<SellerConsoleProps> = ({
                   value={restoNameDraft}
                   onChange={(e) => setRestoNameDraft(e.target.value)}
                   placeholder={uiText(locale, "Nama Resto...")}
-                  className="bg-[#131C2E] border border-slate-600 rounded-xl px-3 py-1 text-xs font-semibold text-[#F3F4F6]"
+                  className="bg-[#1C2430] border border-slate-600 rounded-xl px-3 py-1 text-xs font-semibold text-[#F8FAFC]"
                 />
                 <button
                   type="submit"
@@ -1260,7 +1260,7 @@ export const SellerConsole: React.FC<SellerConsoleProps> = ({
                 <button
                   type="button"
                   onClick={() => setEditingRestoName(false)}
-                  className="px-2 py-1 rounded-lg bg-[#131C2E] text-xs text-slate-400 cursor-pointer"
+                  className="px-2 py-1 rounded-lg bg-[#1C2430] text-xs text-slate-300 cursor-pointer"
                 >{' '}{uiText(locale, "Batal")}{' '}</button>
               </form>
             ) : (
@@ -1269,10 +1269,10 @@ export const SellerConsole: React.FC<SellerConsoleProps> = ({
                   type="button"
                   data-testid="seller-header-store-btn"
                   onClick={() => store && onOpenStorefront(store.slug)}
-                  className="inline-flex items-center gap-2 px-3 py-1.5 rounded-xl bg-[#131C2E] border border-slate-800 text-sm font-semibold text-[#F3F4F6] hover:border-slate-700 truncate cursor-pointer"
+                  className="inline-flex items-center gap-2 px-3 py-1.5 rounded-xl bg-[#1C2430] border border-slate-600 text-sm font-semibold text-[#F8FAFC] hover:border-slate-500 truncate cursor-pointer"
                 >
                   <span className="truncate">{store?.name || 'Your shop'}</span>
-                  <ExternalLink className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                  <ExternalLink className="w-3.5 h-3.5 text-slate-300 shrink-0" />
                 </button>
                 <button
                   type="button"
@@ -1280,7 +1280,7 @@ export const SellerConsole: React.FC<SellerConsoleProps> = ({
                     setRestoNameDraft(store?.name || 'Your shop');
                     setEditingRestoName(true);
                   }}
-                  className="px-2.5 py-1.5 rounded-xl bg-[#131C2E] border border-slate-800 text-xs text-[#DFC496] hover:border-slate-700 inline-flex items-center gap-1 cursor-pointer"
+                  className="px-2.5 py-1.5 rounded-xl bg-[#1C2430] border border-slate-600 text-xs text-[#DFC496] hover:border-slate-500 inline-flex items-center gap-1 cursor-pointer"
                   title={uiText(locale, "Ubah Nama Resto")}
                 >
                   <Pencil className="w-3 h-3" />
@@ -1292,16 +1292,16 @@ export const SellerConsole: React.FC<SellerConsoleProps> = ({
 
           <div className="flex items-center gap-2.5 shrink-0">
             {/* Language Selector */}
-            <div className="flex items-center gap-1.5 bg-[#131C2E] border border-slate-700/80 rounded-full px-3 py-1.5">
+            <div className="flex items-center gap-1.5 bg-[#1C2430] border border-slate-500/80 rounded-full px-3 py-1.5">
               <Globe className="w-3.5 h-3.5 text-slate-300" />
               <select
                 aria-label="Seller UI Language"
                 value={locale}
                 onChange={(e) => onChangeLocale(e.target.value as SupportedLocale)}
-                className="bg-transparent text-xs font-medium text-[#F3F4F6] focus:outline-none cursor-pointer"
+                className="bg-transparent text-xs font-medium text-[#F8FAFC] focus:outline-none cursor-pointer"
               >
                 {(Object.keys(LOCALE_METADATA) as SupportedLocale[]).map((loc) => (
-                  <option key={loc} value={loc} className="bg-[#131C2E]">
+                  <option key={loc} value={loc} className="bg-[#1C2430]">
                     {LOCALE_METADATA[loc].shortLabel}
                   </option>
                 ))}
@@ -1326,7 +1326,7 @@ export const SellerConsole: React.FC<SellerConsoleProps> = ({
               className={`w-9 h-9 rounded-full border flex items-center justify-center transition-colors cursor-pointer ${
                 audioUnlocked && !audioMuted
                   ? 'bg-[#0F3D3E] border-[#14B8A6] text-[#2DD4BF]'
-                  : 'bg-[#131C2E] border-slate-700 text-slate-400'
+                  : 'bg-[#1C2430] border-slate-500 text-slate-300'
               }`}
             >
               {audioUnlocked && !audioMuted ? (
@@ -1339,7 +1339,7 @@ export const SellerConsole: React.FC<SellerConsoleProps> = ({
             <button
               type="button"
               onClick={handleLogout}
-              className="px-3 py-1.5 rounded-full bg-[#131C2E] border border-slate-800 text-xs text-slate-300 hover:text-white cursor-pointer"
+              className="px-3 py-1.5 rounded-full bg-[#1C2430] border border-slate-600 text-xs text-slate-300 hover:text-white cursor-pointer"
             >
               {t.logoutBtn}
             </button>
@@ -1358,7 +1358,7 @@ export const SellerConsole: React.FC<SellerConsoleProps> = ({
           <div className="max-w-[1320px] mx-auto flex flex-wrap items-center justify-between gap-3">
             <div className="flex items-center gap-2.5">
               <span
-                className={`px-2.5 py-0.5 rounded-full font-extrabold uppercase tracking-wider text-[11px] ${
+                className={`px-2.5 py-0.5 rounded-full font-extrabold uppercase tracking-wider text-[13px] ${
                   activeEnv === 'testnet'
                     ? 'bg-amber-900 text-amber-100'
                     : 'bg-emerald-900 text-emerald-100'
@@ -1380,7 +1380,7 @@ export const SellerConsole: React.FC<SellerConsoleProps> = ({
                 type="button"
                 data-testid="seller-switch-testnet"
                 onClick={() => handleSwitchEnvironment('testnet')}
-                className={`px-2.5 py-1 rounded-md text-[11px] font-bold transition-colors cursor-pointer ${
+                className={`px-2.5 py-1 rounded-md text-[13px] font-bold transition-colors cursor-pointer ${
                   activeEnv === 'testnet'
                     ? 'bg-amber-700 text-white'
                     : 'text-stone-700 hover:bg-stone-100'
@@ -1392,7 +1392,7 @@ export const SellerConsole: React.FC<SellerConsoleProps> = ({
                 type="button"
                 data-testid="seller-switch-mainnet"
                 onClick={() => handleSwitchEnvironment('mainnet')}
-                className={`px-2.5 py-1 rounded-md text-[11px] font-bold transition-colors cursor-pointer ${
+                className={`px-2.5 py-1 rounded-md text-[13px] font-bold transition-colors cursor-pointer ${
                   activeEnv === 'mainnet'
                     ? 'bg-emerald-800 text-white'
                     : 'text-stone-700 hover:bg-stone-100'
@@ -1424,13 +1424,13 @@ export const SellerConsole: React.FC<SellerConsoleProps> = ({
               <div className="lg:col-span-8 space-y-6">
                 <div className="flex flex-wrap items-center justify-between gap-3">
                   <div>
-                    <h1 className="text-3xl font-bold text-[#F3F4F6] tracking-tight">
+                    <h1 className="text-3xl font-bold text-[#F8FAFC] tracking-tight">
                       {t.navCashier} — {store?.name || 'Your shop'}{' '}
                       <span className="text-sm font-mono uppercase px-2.5 py-0.5 rounded-full bg-amber-100 border border-amber-400 text-amber-950 align-middle">
                         {activeEnv}
                       </span>
                     </h1>
-                    <p className="text-xs text-slate-400 mt-0.5">{' '}{uiText(locale, "Menu dipisahkan per kolom kategori: Makanan, Minuman, Dessert, Buah Segar, Bakery & Lainnya")}{' '}</p>
+                    <p className="text-xs text-slate-300 mt-0.5">{' '}{uiText(locale, "Menu dipisahkan per kolom kategori: Makanan, Minuman, Dessert, Buah Segar, Bakery & Lainnya")}{' '}</p>
                   </div>
 
                   <button
@@ -1456,9 +1456,9 @@ export const SellerConsole: React.FC<SellerConsoleProps> = ({
                 {showPosMenuForm && (
                   <div
                     data-testid="pos-menu-form-panel"
-                    className="animate-card-in bg-[#131C2E] border border-slate-700 rounded-3xl p-5 space-y-4 shadow-2xl"
+                    className="animate-card-in bg-[#1C2430] border border-slate-500 rounded-3xl p-5 space-y-4 shadow-2xl"
                   >
-                    <div className="flex items-center justify-between border-b border-slate-700 pb-3">
+                    <div className="flex items-center justify-between border-b border-slate-500 pb-3">
                       <div>
                         <h2 className="text-base font-bold text-[#DFC496] flex items-center gap-2">
                           <Tag className="w-4 h-4 text-[#2DD4BF]" />
@@ -1468,7 +1468,7 @@ export const SellerConsole: React.FC<SellerConsoleProps> = ({
                               : uiText(locale, "Tambah Menu & Harga Baru")}
                           </span>
                         </h2>
-                        <p className="text-xs text-slate-400 mt-0.5">{' '}{uiText(locale, "Pilih kolom kategori (Makanan, Minuman, Dessert, Buah Segar, Bakery, Lainnya) & atur harga NIM / USDT.")}{' '}</p>
+                        <p className="text-xs text-slate-300 mt-0.5">{' '}{uiText(locale, "Pilih kolom kategori (Makanan, Minuman, Dessert, Buah Segar, Bakery, Lainnya) & atur harga NIM / USDT.")}{' '}</p>
                       </div>
                       <button
                         type="button"
@@ -1476,7 +1476,7 @@ export const SellerConsole: React.FC<SellerConsoleProps> = ({
                           setShowPosMenuForm(false);
                           handleResetProductForm();
                         }}
-                        className="p-1.5 rounded-full bg-[#182338] text-slate-400 hover:text-[#F3F4F6] cursor-pointer"
+                        className="p-1.5 rounded-full bg-[#263242] text-slate-300 hover:text-[#F8FAFC] cursor-pointer"
                         aria-label="Close menu form"
                       >
                         <X className="w-4 h-4" />
@@ -1494,7 +1494,7 @@ export const SellerConsole: React.FC<SellerConsoleProps> = ({
                             value={newProdName}
                             onChange={(e) => setNewProdName(e.target.value)}
                             placeholder={uiText(locale, "Contoh: Nasi Goreng Kampung / Es Kopi Krim")}
-                            className="w-full bg-[#182338] border border-slate-700 rounded-xl px-3.5 py-2 text-xs text-[#F3F4F6]"
+                            className="w-full bg-[#263242] border border-slate-500 rounded-xl px-3.5 py-2 text-xs text-[#F8FAFC]"
                           />
                         </div>
                         <div>
@@ -1504,7 +1504,7 @@ export const SellerConsole: React.FC<SellerConsoleProps> = ({
                             onChange={(e) =>
                               setNewProdCat(e.target.value as ProductCategory)
                             }
-                            className="w-full bg-[#182338] border border-slate-700 rounded-xl px-3 py-2 text-xs text-[#F3F4F6]"
+                            className="w-full bg-[#263242] border border-slate-500 rounded-xl px-3 py-2 text-xs text-[#F8FAFC]"
                           >
                             <option value="food">{categoryCopy('food', locale).title}</option>
                             <option value="drinks">{categoryCopy('drinks', locale).title}</option>
@@ -1526,7 +1526,7 @@ export const SellerConsole: React.FC<SellerConsoleProps> = ({
                             value={newProdNim}
                             onChange={(e) => setNewProdNim(e.target.value)}
                             placeholder="45"
-                            className="w-full bg-[#182338] border border-slate-700 rounded-xl px-3.5 py-2 text-xs font-mono text-[#F3F4F6]"
+                            className="w-full bg-[#263242] border border-slate-500 rounded-xl px-3.5 py-2 text-xs font-mono text-[#F8FAFC]"
                           />
                         </div>
                         <div>
@@ -1538,7 +1538,7 @@ export const SellerConsole: React.FC<SellerConsoleProps> = ({
                             value={newProdUsdt}
                             onChange={(e) => setNewProdUsdt(e.target.value)}
                             placeholder="1.50"
-                            className="w-full bg-[#182338] border border-slate-700 rounded-xl px-3.5 py-2 text-xs font-mono text-[#F3F4F6]"
+                            className="w-full bg-[#263242] border border-slate-500 rounded-xl px-3.5 py-2 text-xs font-mono text-[#F8FAFC]"
                           />
                         </div>
                         <div>
@@ -1548,7 +1548,7 @@ export const SellerConsole: React.FC<SellerConsoleProps> = ({
                             value={newProdDesc}
                             onChange={(e) => setNewProdDesc(e.target.value)}
                             placeholder={uiText(locale, "Racikan spesial resto")}
-                            className="w-full bg-[#182338] border border-slate-700 rounded-xl px-3.5 py-2 text-xs text-[#F3F4F6]"
+                            className="w-full bg-[#263242] border border-slate-500 rounded-xl px-3.5 py-2 text-xs text-[#F8FAFC]"
                           />
                         </div>
                       </div>
@@ -1564,8 +1564,8 @@ export const SellerConsole: React.FC<SellerConsoleProps> = ({
                               onClick={() => setNewProdImg(preset.url)}
                               className={`flex items-center gap-1.5 px-2.5 py-1 rounded-xl border text-xs transition-all cursor-pointer ${
                                 newProdImg === preset.url
-                                  ? 'bg-[#14B8A6]/25 border-[#14B8A6] text-[#F3F4F6] font-semibold'
-                                  : 'bg-[#182338] border-slate-700 text-slate-400 hover:text-white'
+                                  ? 'bg-[#14B8A6]/25 border-[#14B8A6] text-[#F8FAFC] font-semibold'
+                                  : 'bg-[#263242] border-slate-500 text-slate-300 hover:text-white'
                               }`}
                             >
                               <img
@@ -1593,7 +1593,7 @@ export const SellerConsole: React.FC<SellerConsoleProps> = ({
                           <button
                             type="button"
                             onClick={handleResetProductForm}
-                            className="px-4 py-2 rounded-xl bg-[#182338] text-slate-300 text-xs font-medium cursor-pointer"
+                            className="px-4 py-2 rounded-xl bg-[#263242] text-slate-300 text-xs font-medium cursor-pointer"
                           >{' '}{uiText(locale, "Batal Edit")}{' '}</button>
                         )}
                         <button
@@ -1619,7 +1619,7 @@ export const SellerConsole: React.FC<SellerConsoleProps> = ({
                       className={`px-3.5 py-1.5 rounded-full text-xs sm:text-sm font-medium transition-all whitespace-nowrap cursor-pointer active:scale-95 ${
                         posCategory === 'all'
                           ? 'bg-[#14B8A6] text-[#071318] font-semibold shadow-md'
-                          : 'bg-[#131C2E] border border-slate-800 text-slate-300'
+                          : 'bg-[#1C2430] border border-slate-600 text-slate-300'
                       }`}
                     >{' '}{uiText(locale, "Semua Kolom (")}{' '}{products.length})
                     </button>
@@ -1634,7 +1634,7 @@ export const SellerConsole: React.FC<SellerConsoleProps> = ({
                           className={`px-3.5 py-1.5 rounded-full text-xs sm:text-sm font-medium transition-all whitespace-nowrap cursor-pointer active:scale-95 ${
                             active
                               ? 'bg-[#14B8A6] text-[#071318] font-semibold shadow-md'
-                              : 'bg-[#131C2E] border border-slate-800 text-slate-300'
+                              : 'bg-[#1C2430] border border-slate-600 text-slate-300'
                           }`}
                         >
                           {categoryCopy(col.id, locale).title} ({count})
@@ -1644,14 +1644,14 @@ export const SellerConsole: React.FC<SellerConsoleProps> = ({
                   </div>
 
                   <div className="relative w-full sm:w-64">
-                    <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+                    <Search className="w-4 h-4 text-slate-300 absolute left-3.5 top-1/2 -translate-y-1/2" />
                     <input
                       type="search"
                       aria-label={t.searchProductsPlaceholder}
                       placeholder={t.searchProductsPlaceholder}
                       value={posSearch}
                       onChange={(e) => setPosSearch(e.target.value)}
-                      className="w-full bg-[#131C2E] border border-slate-800 rounded-full pl-9 pr-4 py-1.5 text-xs sm:text-sm text-[#F3F4F6] placeholder:text-slate-400"
+                      className="w-full bg-[#1C2430] border border-slate-600 rounded-full pl-9 pr-4 py-1.5 text-xs sm:text-sm text-[#F8FAFC] placeholder:text-slate-300"
                     />
                   </div>
                 </div>
@@ -1675,22 +1675,22 @@ export const SellerConsole: React.FC<SellerConsoleProps> = ({
                       <div
                         key={col.id}
                         data-testid={`pos-column-${col.id}`}
-                        className="bg-[#131C2E] border border-slate-700 rounded-3xl p-4 space-y-3.5 shadow-sm"
+                        className="bg-[#1C2430] border border-slate-500 rounded-3xl p-4 space-y-3.5 shadow-sm"
                       >
                         <div className="flex items-center justify-between border-b border-[#E8DFD1] pb-2.5">
                           <div>
-                            <h2 className="text-base font-bold text-[#F3F4F6]">
+                            <h2 className="text-base font-bold text-[#F8FAFC]">
                               {categoryCopy(col.id, locale).title}
                             </h2>
-                            <p className="text-[11px] text-slate-400">{categoryCopy(col.id, locale).subtitle}</p>
+                            <p className="text-[13px] text-slate-300">{categoryCopy(col.id, locale).subtitle}</p>
                           </div>
-                          <span className="px-2.5 py-0.5 rounded-full bg-[#182338] border border-slate-700 text-xs font-bold text-[#DFC496] tabular-nums">
+                          <span className="px-2.5 py-0.5 rounded-full bg-[#263242] border border-slate-500 text-xs font-bold text-[#DFC496] tabular-nums">
                             {colProducts.length} menu
                           </span>
                         </div>
 
                         {colProducts.length === 0 ? (
-                          <div className="py-5 text-center text-xs text-slate-400">{' '}{uiText(locale, "Belum ada menu di kolom")}{' '}{categoryCopy(col.id, locale).title}.
+                          <div className="py-5 text-center text-xs text-slate-300">{' '}{uiText(locale, "Belum ada menu di kolom")}{' '}{categoryCopy(col.id, locale).title}.
                           </div>
                         ) : (
                           <div className="space-y-3">
@@ -1708,7 +1708,7 @@ export const SellerConsole: React.FC<SellerConsoleProps> = ({
                                 <div
                                   key={prod.id}
                                   style={{ animationDelay: `${idx * 45}ms` }}
-                                  className="group menu-card-live animate-card-in bg-[#182338] border border-slate-700 rounded-2xl p-2.5 flex items-center justify-between gap-3"
+                                  className="group menu-card-live animate-card-in bg-[#263242] border border-slate-500 rounded-2xl p-2.5 flex items-center justify-between gap-3"
                                 >
                                   <div className="flex items-center gap-3 min-w-0">
                                     <img
@@ -1718,7 +1718,7 @@ export const SellerConsole: React.FC<SellerConsoleProps> = ({
                                       className="w-14 h-14 rounded-xl object-cover shrink-0 transition-transform duration-500 group-hover:scale-105"
                                     />
                                     <div className="min-w-0">
-                                      <div className="text-sm font-semibold text-[#F3F4F6] truncate">
+                                      <div className="text-sm font-semibold text-[#F8FAFC] truncate">
                                         {prod.name}
                                       </div>
                                       <div className="text-xs font-bold text-[#DFC496] tabular-nums mt-0.5">
@@ -1727,7 +1727,7 @@ export const SellerConsole: React.FC<SellerConsoleProps> = ({
                                       <button
                                         type="button"
                                         onClick={() => handleStartEditProduct(prod, true)}
-                                        className="mt-1 text-[11px] text-slate-400 hover:text-[#F3F4F6] inline-flex items-center gap-1 cursor-pointer"
+                                        className="mt-1 text-[13px] text-slate-300 hover:text-[#F8FAFC] inline-flex items-center gap-1 cursor-pointer"
                                       >
                                         <Pencil className="w-2.5 h-2.5 text-[#DFC496]" />
                                         <span>{' '}{uiText(locale, "Edit Harga")}{' '}</span>
@@ -1755,12 +1755,12 @@ export const SellerConsole: React.FC<SellerConsoleProps> = ({
               </div>
 
               {/* Right 4 Columns: Cashier Order Panel */}
-              <div className="lg:col-span-4 bg-[#131C2E] border border-slate-800 rounded-3xl p-6 space-y-5 shadow-xl">
+              <div className="lg:col-span-4 bg-[#1C2430] border border-slate-600 rounded-3xl p-6 space-y-5 shadow-xl">
                 <div className="flex items-center justify-between">
-                  <h2 className="text-2xl font-bold text-[#F3F4F6] tracking-tight">
+                  <h2 className="text-2xl font-bold text-[#F8FAFC] tracking-tight">
                     {t.orderNumberLabel} {activeEnv === 'testnet' ? '#T-POS' : '#POS'}
                   </h2>
-                  <span className="text-xs text-slate-400 font-mono">
+                  <span className="text-xs text-slate-300 font-mono">
                     {store?.slug} · {activeEnv.toUpperCase()}
                   </span>
                 </div>
@@ -1774,7 +1774,7 @@ export const SellerConsole: React.FC<SellerConsoleProps> = ({
                     type="text"
                     value={posTableNote}
                     onChange={(e) => setPosTableNote(e.target.value)}
-                    className="w-full bg-[#182338] border border-slate-700/80 rounded-xl px-3.5 py-2 text-xs text-slate-200"
+                    className="w-full bg-[#263242] border border-slate-500/80 rounded-xl px-3.5 py-2 text-xs text-slate-200"
                   />
                 </div>
 
@@ -1814,15 +1814,15 @@ export const SellerConsole: React.FC<SellerConsoleProps> = ({
                             className="w-11 h-11 rounded-xl object-cover shrink-0"
                           />
                           <div className="min-w-0">
-                            <div className="text-sm font-semibold text-[#F3F4F6] truncate">
+                            <div className="text-sm font-semibold text-[#F8FAFC] truncate">
                               {prod.name}
                             </div>
-                            <div className="text-xs text-slate-400 tabular-nums">{unitStr}</div>
+                            <div className="text-xs text-slate-300 tabular-nums">{unitStr}</div>
                           </div>
                         </div>
 
                         <div className="flex items-center gap-2.5 shrink-0">
-                          <div className="flex items-center gap-1.5 bg-[#0B101C] border border-slate-800 rounded-full px-2 py-1">
+                          <div className="flex items-center gap-1.5 bg-[#0B0F14] border border-slate-600 rounded-full px-2 py-1">
                             <button
                               type="button"
                               onClick={() => updatePosQty(prod.id, -1)}
@@ -1844,7 +1844,7 @@ export const SellerConsole: React.FC<SellerConsoleProps> = ({
                             </button>
                           </div>
 
-                          <div className="text-xs sm:text-sm font-bold text-[#F3F4F6] tabular-nums w-24 text-right">
+                          <div className="text-xs sm:text-sm font-bold text-[#F8FAFC] tabular-nums w-24 text-right">
                             {lineStr}
                           </div>
                         </div>
@@ -1854,7 +1854,7 @@ export const SellerConsole: React.FC<SellerConsoleProps> = ({
                 </div>
 
                 {/* Total */}
-                <div className="pt-3 border-t border-slate-800 flex items-baseline justify-between">
+                <div className="pt-3 border-t border-slate-600 flex items-baseline justify-between">
                   <span className="text-base text-slate-300">{t.totalLabel}</span>
                   <span className="text-2xl font-bold text-[#DFC496] tabular-nums">
                     {posCalculation.totalFormatted}
@@ -1863,7 +1863,7 @@ export const SellerConsole: React.FC<SellerConsoleProps> = ({
 
                 {/* Payment Method Cards */}
                 <div className="space-y-2">
-                  <span className="text-xs text-slate-400 block">
+                  <span className="text-xs text-slate-300 block">
                     {t.paymentMethod} ({activeEnv.toUpperCase()})
                   </span>
                   <div className="grid grid-cols-2 gap-3">
@@ -1872,8 +1872,8 @@ export const SellerConsole: React.FC<SellerConsoleProps> = ({
                       onClick={() => setPosAsset('NIM')}
                       className={`p-3.5 rounded-2xl border text-left transition-colors cursor-pointer ${
                         posAsset === 'NIM'
-                          ? 'bg-[#0F3D3E]/70 border-[#14B8A6] text-[#F3F4F6]'
-                          : 'bg-[#0B101C] border-slate-800 text-slate-400'
+                          ? 'bg-[#0F3D3E]/70 border-[#14B8A6] text-[#F8FAFC]'
+                          : 'bg-[#0B0F14] border-slate-600 text-slate-300'
                       }`}
                     >
                       <div className="flex items-center justify-between">
@@ -1882,7 +1882,7 @@ export const SellerConsole: React.FC<SellerConsoleProps> = ({
                         </span>
                         <span className="text-xs text-[#2DD4BF]">✓</span>
                       </div>
-                      <div className="text-xs text-slate-400 mt-1">
+                      <div className="text-xs text-slate-300 mt-1">
                         {activeEnv === 'testnet' ? 'Nimiq Testnet (ID 5)' : 'Nimiq Mainnet'}
                       </div>
                     </button>
@@ -1892,8 +1892,8 @@ export const SellerConsole: React.FC<SellerConsoleProps> = ({
                       onClick={() => setPosAsset('USDT')}
                       className={`p-3.5 rounded-2xl border text-left transition-colors cursor-pointer ${
                         posAsset === 'USDT'
-                          ? 'bg-[#0F3D3E]/70 border-[#14B8A6] text-[#F3F4F6]'
-                          : 'bg-[#0B101C] border-slate-800 text-slate-400'
+                          ? 'bg-[#0F3D3E]/70 border-[#14B8A6] text-[#F8FAFC]'
+                          : 'bg-[#0B0F14] border-slate-600 text-slate-300'
                       }`}
                     >
                       <div className="flex items-center justify-between">
@@ -1902,15 +1902,15 @@ export const SellerConsole: React.FC<SellerConsoleProps> = ({
                         </span>
                         <span className="text-xs text-[#2DD4BF]">✓</span>
                       </div>
-                      <div className="text-xs text-slate-400 mt-1">
+                      <div className="text-xs text-slate-300 mt-1">
                         {activeEnv === 'testnet' ? 'Polygon Amoy (80002)' : 'Polygon (137)'}
                       </div>
                     </button>
                   </div>
                 </div>
 
-                <div className="text-xs text-slate-400 flex items-center gap-1.5">
-                  <Info className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                <div className="text-xs text-slate-300 flex items-center gap-1.5">
+                  <Info className="w-3.5 h-3.5 text-slate-300 shrink-0" />
                   <span>{t.pricesSetByMerchant}</span>
                 </div>
 
@@ -1934,7 +1934,7 @@ export const SellerConsole: React.FC<SellerConsoleProps> = ({
                   <ArrowRight className="w-4 h-4" />
                 </button>
 
-                <div className="text-center text-xs text-slate-400 space-y-0.5">
+                <div className="text-center text-xs text-slate-300 space-y-0.5">
                   <p>Direct to your {activeEnv} wallet profile.</p>
                   <p>🔒 {t.nativeConfirmRequired}</p>
                 </div>
@@ -1950,7 +1950,7 @@ export const SellerConsole: React.FC<SellerConsoleProps> = ({
             <div className="max-w-6xl mx-auto space-y-6">
               <div className="flex flex-wrap items-center justify-between gap-4">
                 <div>
-                  <h1 className="text-2xl font-bold text-[#F3F4F6]">
+                  <h1 className="text-2xl font-bold text-[#F8FAFC]">
                     {t.navOrders} —{' '}
                     <span className={activeEnv === 'testnet' ? 'text-amber-700' : 'text-emerald-700'}>
                       {activeEnv === 'testnet'
@@ -1958,13 +1958,13 @@ export const SellerConsole: React.FC<SellerConsoleProps> = ({
                         : uiText(locale, "Daftar Pesanan MAINNET (Penjualan Nyata)")}
                     </span>
                   </h1>
-                  <p className="text-xs text-slate-400 mt-0.5">{' '}{uiText(locale, "Pesanan Testnet (#T...) dan Mainnet (#...) dipisahkan secara ketat. Status pembayaran diverifikasi hanya pada jaringan pesanan tersebut.")}{' '}</p>
+                  <p className="text-xs text-slate-300 mt-0.5">{' '}{uiText(locale, "Pesanan Testnet (#T...) dan Mainnet (#...) dipisahkan secara ketat. Status pembayaran diverifikasi hanya pada jaringan pesanan tersebut.")}{' '}</p>
                 </div>
 
                 {/* High-contrast Payment Status Legend */}
                 <div
                   aria-label="Payment status color legend"
-                  className="flex flex-wrap items-center gap-2 bg-[#131C2E] border border-slate-800 rounded-2xl px-3.5 py-2"
+                  className="flex flex-wrap items-center gap-2 bg-[#1C2430] border border-slate-600 rounded-2xl px-3.5 py-2"
                 >
                   <OrderStatusBadge status="unpaid" locale={locale} size="sm" />
                   <OrderStatusBadge status="pending" locale={locale} size="sm" />
@@ -1994,12 +1994,12 @@ export const SellerConsole: React.FC<SellerConsoleProps> = ({
                       <div
                         key={ord.id}
                         data-testid={`seller-order-card-${ord.orderNumber}`}
-                        className="bg-[#131C2E] border border-slate-800 rounded-2xl p-5 flex flex-col lg:flex-row lg:items-center justify-between gap-4"
+                        className="bg-[#1C2430] border border-slate-600 rounded-2xl p-5 flex flex-col lg:flex-row lg:items-center justify-between gap-4"
                       >
                         <div className="space-y-2 max-w-2xl">
                           <div className="flex flex-wrap items-center gap-2.5 text-xs">
                             <span
-                              className={`px-2 py-0.5 rounded-full text-[11px] font-extrabold uppercase ${
+                              className={`px-2 py-0.5 rounded-full text-[13px] font-extrabold uppercase ${
                                 isTestOrd
                                   ? 'bg-amber-900 text-amber-100'
                                   : 'bg-emerald-900 text-emerald-100'
@@ -2011,16 +2011,16 @@ export const SellerConsole: React.FC<SellerConsoleProps> = ({
                               {ord.orderNumber}
                             </span>
                             <span aria-hidden="true">·</span>
-                            <span className="font-semibold text-[#F3F4F6] tabular-nums">
+                            <span className="font-semibold text-[#F8FAFC] tabular-nums">
                               {ord.amountFormatted}
                             </span>
                             <span aria-hidden="true">·</span>
-                            <span className="font-mono text-slate-400">
+                            <span className="font-mono text-slate-300">
                               {ord.network}{' '}
                               {ord.snapshotChainId ? `(Chain ${ord.snapshotChainId})` : ''}
                             </span>
                             <span aria-hidden="true">·</span>
-                            <span className="text-slate-400 uppercase">{ord.fulfillmentMode}</span>
+                            <span className="text-slate-300 uppercase">{ord.fulfillmentMode}</span>
                             {ord.tableOrNote && (
                               <>
                                 <span aria-hidden="true">·</span>
@@ -2034,14 +2034,14 @@ export const SellerConsole: React.FC<SellerConsoleProps> = ({
                           </div>
 
                           {ord.deliveryInfo && (
-                            <div className="text-xs text-slate-400 bg-[#0B101C] p-2.5 rounded-xl border border-slate-800">
+                            <div className="text-xs text-slate-300 bg-[#0B0F14] p-2.5 rounded-xl border border-slate-600">
                               <strong className="text-slate-200">Delivery Recipient:</strong>{' '}
                               {ord.deliveryInfo.recipientName} ({ord.deliveryInfo.phone}) —{' '}
                               {ord.deliveryInfo.address}
                             </div>
                           )}
 
-                          <div className="text-[11px] font-mono text-slate-400">
+                          <div className="text-[13px] font-mono text-slate-300">
                             Snapshot Wallet ({isTestOrd ? 'TESTNET' : 'MAINNET'}):{' '}
                             {ord.snapshotRecipient}
                           </div>
@@ -2063,12 +2063,12 @@ export const SellerConsole: React.FC<SellerConsoleProps> = ({
                         {/* Right Side: Separated Payment Status & Fulfillment Controls */}
                         <div className="flex flex-col sm:flex-row lg:flex-col items-start sm:items-center lg:items-end gap-3 shrink-0">
                           <div className="flex flex-wrap items-center gap-2 text-xs">
-                            <span className="text-slate-400">Payment:</span>
+                            <span className="text-slate-300">Payment:</span>
                             <OrderStatusBadge
                               status={ord.paymentStatus}
                               locale={locale}
                             />
-                            <span className="text-slate-400 ml-1">Fulfillment:</span>
+                            <span className="text-slate-300 ml-1">Fulfillment:</span>
                             <OrderStatusBadge
                               status={ord.fulfillmentStatus}
                               locale={locale}
@@ -2093,7 +2093,7 @@ export const SellerConsole: React.FC<SellerConsoleProps> = ({
                                 className={`px-2.5 py-1 rounded-lg text-xs font-medium transition-colors cursor-pointer ${
                                   ord.fulfillmentStatus === st.id
                                     ? 'bg-[#14B8A6] text-[#071318] font-semibold'
-                                    : 'bg-[#0B101C] border border-slate-800 text-slate-400 hover:text-white'
+                                    : 'bg-[#0B0F14] border border-slate-600 text-slate-300 hover:text-white'
                                 }`}
                               >
                                 {st.label}
@@ -2126,22 +2126,22 @@ export const SellerConsole: React.FC<SellerConsoleProps> = ({
           ================================================================== */}
           {currentTab === 'products' && (
             <div className="relative z-10 max-w-5xl mx-auto grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
-              <div className="lg:col-span-5 bg-[#131C2E] border border-slate-800 rounded-2xl p-6 space-y-4">
+              <div className="lg:col-span-5 bg-[#1C2430] border border-slate-600 rounded-2xl p-6 space-y-4">
                 <div className="flex items-center justify-between">
-                  <h2 className="text-lg font-bold text-[#F3F4F6]">
+                  <h2 className="text-lg font-bold text-[#F8FAFC]">
                     {editingProdId ? uiText(locale, "Edit Menu & Harga") : uiText(locale, "Tambah Menu & Harga Baru")}
                   </h2>
                   {editingProdId && (
                     <button
                       type="button"
                       onClick={handleResetProductForm}
-                      className="text-xs text-slate-400 hover:text-[#F3F4F6] underline cursor-pointer"
+                      className="text-xs text-slate-300 hover:text-[#F8FAFC] underline cursor-pointer"
                     >
                       Reset
                     </button>
                   )}
                 </div>
-                <p className="text-xs text-slate-400">{' '}{uiText(locale, "Atur harga manual dalam NIM dan/atau Polygon USDT (di Testnet ditampilkan sebagai NIM TESTNET & TEST TOKEN). NimTera tidak pernah melakukan konversi kurs otomatis.")}{' '}</p>
+                <p className="text-xs text-slate-300">{' '}{uiText(locale, "Atur harga manual dalam NIM dan/atau Polygon USDT (di Testnet ditampilkan sebagai NIM TESTNET & TEST TOKEN). NimTera tidak pernah melakukan konversi kurs otomatis.")}{' '}</p>
 
                 <form onSubmit={handleCreateProduct} className="space-y-3.5">
                   <div>
@@ -2152,7 +2152,7 @@ export const SellerConsole: React.FC<SellerConsoleProps> = ({
                       value={newProdName}
                       onChange={(e) => setNewProdName(e.target.value)}
                       placeholder="Cardamom Cold Brew"
-                      className="w-full bg-[#182338] border border-slate-700 rounded-xl px-3 py-2 text-xs text-[#F3F4F6]"
+                      className="w-full bg-[#263242] border border-slate-500 rounded-xl px-3 py-2 text-xs text-[#F8FAFC]"
                     />
                   </div>
                   <div>
@@ -2162,7 +2162,7 @@ export const SellerConsole: React.FC<SellerConsoleProps> = ({
                       value={newProdDesc}
                       onChange={(e) => setNewProdDesc(e.target.value)}
                       placeholder="Spiced night market signature coffee"
-                      className="w-full bg-[#182338] border border-slate-700 rounded-xl px-3 py-2 text-xs text-[#F3F4F6]"
+                      className="w-full bg-[#263242] border border-slate-500 rounded-xl px-3 py-2 text-xs text-[#F8FAFC]"
                     />
                   </div>
                   <div>
@@ -2172,7 +2172,7 @@ export const SellerConsole: React.FC<SellerConsoleProps> = ({
                       onChange={(e) =>
                         setNewProdCat(e.target.value as ProductCategory)
                       }
-                      className="w-full bg-[#182338] border border-slate-700 rounded-xl px-3 py-2 text-xs text-[#F3F4F6]"
+                      className="w-full bg-[#263242] border border-slate-500 rounded-xl px-3 py-2 text-xs text-[#F8FAFC]"
                     >
                       <option value="food">{categoryCopy('food', locale).title}</option>
                       <option value="drinks">{categoryCopy('drinks', locale).title}</option>
@@ -2190,7 +2190,7 @@ export const SellerConsole: React.FC<SellerConsoleProps> = ({
                         value={newProdNim}
                         onChange={(e) => setNewProdNim(e.target.value)}
                         placeholder="40"
-                        className="w-full bg-[#182338] border border-slate-700 rounded-xl px-3 py-2 text-xs font-mono text-[#F3F4F6]"
+                        className="w-full bg-[#263242] border border-slate-500 rounded-xl px-3 py-2 text-xs font-mono text-[#F8FAFC]"
                       />
                     </div>
                     <div>
@@ -2200,7 +2200,7 @@ export const SellerConsole: React.FC<SellerConsoleProps> = ({
                         value={newProdUsdt}
                         onChange={(e) => setNewProdUsdt(e.target.value)}
                         placeholder="1.20"
-                        className="w-full bg-[#182338] border border-slate-700 rounded-xl px-3 py-2 text-xs font-mono text-[#F3F4F6]"
+                        className="w-full bg-[#263242] border border-slate-500 rounded-xl px-3 py-2 text-xs font-mono text-[#F8FAFC]"
                       />
                     </div>
                   </div>
@@ -2214,10 +2214,10 @@ export const SellerConsole: React.FC<SellerConsoleProps> = ({
                           key={preset.url}
                           type="button"
                           onClick={() => setNewProdImg(preset.url)}
-                          className={`flex items-center gap-1.5 p-1.5 rounded-xl border text-[11px] transition-all cursor-pointer ${
+                          className={`flex items-center gap-1.5 p-1.5 rounded-xl border text-[13px] transition-all cursor-pointer ${
                             newProdImg === preset.url
-                              ? 'bg-[#14B8A6]/25 border-[#14B8A6] text-[#F3F4F6] font-semibold'
-                              : 'bg-[#182338] border-slate-700 text-slate-400'
+                              ? 'bg-[#14B8A6]/25 border-[#14B8A6] text-[#F8FAFC] font-semibold'
+                              : 'bg-[#263242] border-slate-500 text-slate-300'
                           }`}
                         >
                           <img
@@ -2249,33 +2249,33 @@ export const SellerConsole: React.FC<SellerConsoleProps> = ({
               </div>
 
               <div className="lg:col-span-7 space-y-5">
-                <h2 className="text-lg font-bold text-[#F3F4F6]">{' '}{uiText(locale, "Katalog Menu & Harga per Kolom (")}{' '}{products.length})
+                <h2 className="text-lg font-bold text-[#F8FAFC]">{' '}{uiText(locale, "Katalog Menu & Harga per Kolom (")}{' '}{products.length})
                 </h2>
                 {MENU_CATEGORY_COLUMNS.map((col) => {
                   const colProds = products.filter((p) => p.category === col.id);
                   return (
                     <div
                       key={col.id}
-                      className="bg-[#131C2E] border border-slate-700 rounded-2xl p-4 space-y-3"
+                      className="bg-[#1C2430] border border-slate-500 rounded-2xl p-4 space-y-3"
                     >
                       <div className="flex items-center justify-between border-b border-[#E8DFD1] pb-2">
                         <div>
-                          <h3 className="text-sm font-bold text-[#F3F4F6]">{categoryCopy(col.id, locale).title}</h3>
-                          <p className="text-[11px] text-slate-400">{categoryCopy(col.id, locale).subtitle}</p>
+                          <h3 className="text-sm font-bold text-[#F8FAFC]">{categoryCopy(col.id, locale).title}</h3>
+                          <p className="text-[13px] text-slate-300">{categoryCopy(col.id, locale).subtitle}</p>
                         </div>
-                        <span className="px-2.5 py-0.5 rounded-full bg-[#182338] text-xs font-bold text-[#DFC496]">
+                        <span className="px-2.5 py-0.5 rounded-full bg-[#263242] text-xs font-bold text-[#DFC496]">
                           {colProds.length} menu
                         </span>
                       </div>
 
                       {colProds.length === 0 ? (
-                        <p className="text-xs text-slate-400 py-2">{' '}{uiText(locale, "Belum ada menu di kolom")}{' '}{categoryCopy(col.id, locale).title}.
+                        <p className="text-xs text-slate-300 py-2">{' '}{uiText(locale, "Belum ada menu di kolom")}{' '}{categoryCopy(col.id, locale).title}.
                         </p>
                       ) : (
                         colProds.map((prod) => (
                           <div
                             key={prod.id}
-                            className="menu-card-live bg-[#182338] border border-slate-800 rounded-2xl p-3.5 flex flex-wrap sm:flex-nowrap items-center justify-between gap-4"
+                            className="menu-card-live bg-[#263242] border border-slate-600 rounded-2xl p-3.5 flex flex-wrap sm:flex-nowrap items-center justify-between gap-4"
                           >
                             <div className="flex items-center gap-3.5 min-w-0">
                               <img
@@ -2285,7 +2285,7 @@ export const SellerConsole: React.FC<SellerConsoleProps> = ({
                                 className="w-12 h-12 rounded-xl object-cover shrink-0"
                               />
                               <div className="min-w-0">
-                                <div className="text-sm font-semibold text-[#F3F4F6] truncate">
+                                <div className="text-sm font-semibold text-[#F8FAFC] truncate">
                                   {prod.name}
                                 </div>
                                 <div className="text-xs text-[#DFC496] font-medium tabular-nums">
@@ -2310,7 +2310,7 @@ export const SellerConsole: React.FC<SellerConsoleProps> = ({
                               <button
                                 type="button"
                                 onClick={() => handleStartEditProduct(prod, false)}
-                                className="px-3 py-1.5 rounded-xl bg-[#131C2E] border border-slate-700 text-[#F3F4F6] text-xs font-medium inline-flex items-center gap-1.5 cursor-pointer"
+                                className="px-3 py-1.5 rounded-xl bg-[#1C2430] border border-slate-500 text-[#F8FAFC] text-xs font-medium inline-flex items-center gap-1.5 cursor-pointer"
                               >
                                 <Pencil className="w-3.5 h-3.5 text-[#DFC496]" />
                                 <span>{' '}{uiText(locale, "Edit Harga")}{' '}</span>
@@ -2322,7 +2322,7 @@ export const SellerConsole: React.FC<SellerConsoleProps> = ({
                                 className={`px-3 py-1.5 rounded-xl text-xs font-semibold cursor-pointer ${
                                   prod.available
                                     ? 'bg-emerald-950/80 text-emerald-300 border border-emerald-700/50'
-                                    : 'bg-slate-800 text-slate-400'
+                                    : 'bg-slate-800 text-slate-300'
                                 }`}
                               >
                                 {prod.available ? 'Available' : 'Unavailable'}
@@ -2356,13 +2356,13 @@ export const SellerConsole: React.FC<SellerConsoleProps> = ({
             <div className="max-w-5xl mx-auto space-y-8">
               <div className="flex flex-wrap items-center justify-between gap-4">
                 <div>
-                  <h1 className="text-2xl font-bold text-[#F3F4F6]">{t.navReports}</h1>
-                  <p className="text-xs text-slate-400 mt-0.5">
+                  <h1 className="text-2xl font-bold text-[#F8FAFC]">{t.navReports}</h1>
+                  <p className="text-xs text-slate-300 mt-0.5">
                     {t.noCombinedTotalNote}{' '}{uiText(locale, "· Laporan Testnet dipisahkan ketat dari penjualan nyata Mainnet.")}{' '}</p>
                 </div>
 
                 <div className="flex items-center gap-2">
-                  <div className="flex items-center gap-1 bg-[#131C2E] border border-slate-800 rounded-xl p-1 text-xs">
+                  <div className="flex items-center gap-1 bg-[#1C2430] border border-slate-600 rounded-xl p-1 text-xs">
                     {(['all', 'today', '7d'] as const).map((range) => (
                       <button
                         key={range}
@@ -2370,8 +2370,8 @@ export const SellerConsole: React.FC<SellerConsoleProps> = ({
                         onClick={() => setReportDateFilter(range)}
                         className={`px-2.5 py-1 rounded-lg font-medium cursor-pointer ${
                           reportDateFilter === range
-                            ? 'bg-[#1E293B] text-[#DFC496]'
-                            : 'text-slate-400'
+                            ? 'bg-[#263242] text-[#DFC496]'
+                            : 'text-slate-300'
                         }`}
                       >
                         {range === 'all' ? 'All Time' : range === 'today' ? '24h' : '7 Days'}
@@ -2393,38 +2393,38 @@ export const SellerConsole: React.FC<SellerConsoleProps> = ({
               {/* SECTION A: MAINNET REAL VERIFIED SALES */}
               <div className="space-y-3">
                 <div className="flex items-center gap-2">
-                  <span className="px-2.5 py-0.5 rounded-full bg-emerald-900 text-emerald-100 text-[11px] font-extrabold uppercase">{' '}{uiText(locale, "MAINNET · PENJUALAN NYATA (DANA ASLI)")}{' '}</span>
-                  <span className="text-xs text-slate-400">{' '}{uiText(locale, "Hanya menghitung pesanan Mainnet terverifikasi RPC (Nimiq Mainnet & Polygon Chain 137)")}{' '}</span>
+                  <span className="px-2.5 py-0.5 rounded-full bg-emerald-900 text-emerald-100 text-[13px] font-extrabold uppercase">{' '}{uiText(locale, "MAINNET · PENJUALAN NYATA (DANA ASLI)")}{' '}</span>
+                  <span className="text-xs text-slate-300">{' '}{uiText(locale, "Hanya menghitung pesanan Mainnet terverifikasi RPC (Nimiq Mainnet & Polygon Chain 137)")}{' '}</span>
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
-                  <div className="bg-[#131C2E] border border-slate-800 rounded-2xl p-5 space-y-1">
-                    <div className="text-xs text-slate-400">{t.reportsNimTotal} (Mainnet)</div>
+                  <div className="bg-[#1C2430] border border-slate-600 rounded-2xl p-5 space-y-1">
+                    <div className="text-xs text-slate-300">{t.reportsNimTotal} (Mainnet)</div>
                     <div
                       data-testid="report-nim-total"
                       className="text-2xl font-bold text-[#DFC496] tabular-nums"
                     >
                       {metrics?.confirmedNimFormatted || '0 NIM'}
                     </div>
-                    <div className="text-[11px] text-slate-400">Nimiq Mainnet (Direct to wallet)</div>
+                    <div className="text-[13px] text-slate-300">Nimiq Mainnet (Direct to wallet)</div>
                   </div>
 
-                  <div className="bg-[#131C2E] border border-slate-800 rounded-2xl p-5 space-y-1">
-                    <div className="text-xs text-slate-400">{t.reportsUsdtTotal} (Mainnet)</div>
+                  <div className="bg-[#1C2430] border border-slate-600 rounded-2xl p-5 space-y-1">
+                    <div className="text-xs text-slate-300">{t.reportsUsdtTotal} (Mainnet)</div>
                     <div
                       data-testid="report-usdt-total"
                       className="text-2xl font-bold text-[#2DD4BF] tabular-nums"
                     >
                       {metrics?.confirmedUsdtFormatted || '0.00 USDT'}
                     </div>
-                    <div className="text-[11px] text-slate-400">Polygon Mainnet (Chain ID 137)</div>
+                    <div className="text-[13px] text-slate-300">Polygon Mainnet (Chain ID 137)</div>
                   </div>
 
-                  <div className="bg-[#131C2E] border border-slate-800 rounded-2xl p-5 space-y-1">
-                    <div className="text-xs text-slate-400">{t.reportsOrderCount} (Mainnet)</div>
-                    <div className="text-2xl font-bold text-[#F3F4F6] tabular-nums">
+                  <div className="bg-[#1C2430] border border-slate-600 rounded-2xl p-5 space-y-1">
+                    <div className="text-xs text-slate-300">{t.reportsOrderCount} (Mainnet)</div>
+                    <div className="text-2xl font-bold text-[#F8FAFC] tabular-nums">
                       {metrics?.confirmedOrdersCount ?? 0} / {metrics?.totalOrdersCount ?? 0}
                     </div>
-                    <div className="text-[11px] text-slate-400">Verified Mainnet settlements</div>
+                    <div className="text-[13px] text-slate-300">Verified Mainnet settlements</div>
                   </div>
                 </div>
               </div>
@@ -2432,8 +2432,8 @@ export const SellerConsole: React.FC<SellerConsoleProps> = ({
               {/* SECTION B: TESTNET SANDBOX ACTIVITY (NEVER MIXED WITH REAL SALES) */}
               <div className="space-y-3">
                 <div className="flex items-center gap-2">
-                  <span className="px-2.5 py-0.5 rounded-full bg-amber-900 text-amber-100 text-[11px] font-extrabold uppercase">{' '}{uiText(locale, "TESTNET · PENGUJIAN SANDBOX (BUKAN PENJUALAN NYATA)")}{' '}</span>
-                  <span className="text-xs text-slate-400">{' '}{uiText(locale, "Nimiq Testnet & Polygon Amoy (Chain ID 80002 · TEST TOKEN) — Tidak pernah digabung ke omzet nyata")}{' '}</span>
+                  <span className="px-2.5 py-0.5 rounded-full bg-amber-900 text-amber-100 text-[13px] font-extrabold uppercase">{' '}{uiText(locale, "TESTNET · PENGUJIAN SANDBOX (BUKAN PENJUALAN NYATA)")}{' '}</span>
+                  <span className="text-xs text-slate-300">{' '}{uiText(locale, "Nimiq Testnet & Polygon Amoy (Chain ID 80002 · TEST TOKEN) — Tidak pernah digabung ke omzet nyata")}{' '}</span>
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
                   <div className="bg-amber-50/90 border border-amber-300 rounded-2xl p-5 space-y-1">
@@ -2444,7 +2444,7 @@ export const SellerConsole: React.FC<SellerConsoleProps> = ({
                     >
                       {testnetMetrics?.confirmedNimFormatted || '0 NIM (TESTNET)'}
                     </div>
-                    <div className="text-[11px] text-amber-800">
+                    <div className="text-[13px] text-amber-800">
                       Nimiq Testnet · Bukan Dana Asli
                     </div>
                   </div>
@@ -2459,7 +2459,7 @@ export const SellerConsole: React.FC<SellerConsoleProps> = ({
                     >
                       {testnetMetrics?.confirmedTestTokenFormatted || '0.00 TEST TOKEN'}
                     </div>
-                    <div className="text-[11px] text-amber-800">
+                    <div className="text-[13px] text-amber-800">
                       Polygon Amoy (Chain ID 80002) · Bukan USDT Asli
                     </div>
                   </div>
@@ -2473,14 +2473,14 @@ export const SellerConsole: React.FC<SellerConsoleProps> = ({
                       {testnetMetrics?.confirmedOrdersCount ?? 0} /{' '}
                       {testnetMetrics?.totalOrdersCount ?? 0}
                     </div>
-                    <div className="text-[11px] text-amber-800">{' '}{uiText(locale, "Khusus pengujian 2 perangkat · Bukan penjualan nyata")}{' '}</div>
+                    <div className="text-[13px] text-amber-800">{' '}{uiText(locale, "Khusus pengujian 2 perangkat · Bukan penjualan nyata")}{' '}</div>
                   </div>
                 </div>
               </div>
 
               {/* Immutable Security & Wallet Audit Log */}
-              <div className="bg-[#131C2E] border border-slate-800 rounded-2xl p-6 space-y-4">
-                <h2 className="text-base font-bold text-[#F3F4F6]">
+              <div className="bg-[#1C2430] border border-slate-600 rounded-2xl p-6 space-y-4">
+                <h2 className="text-base font-bold text-[#F8FAFC]">
                   Security & Wallet Audit Log ({auditLogs.length})
                 </h2>
                 <div className="divide-y divide-slate-800/80 text-xs">
@@ -2488,18 +2488,18 @@ export const SellerConsole: React.FC<SellerConsoleProps> = ({
                     <div key={log.id} className="py-3 first:pt-0 space-y-1">
                       <div className="flex items-center justify-between">
                         <span className="font-mono font-semibold text-[#DFC496]">{log.action}</span>
-                        <span className="text-slate-400 tabular-nums">
+                        <span className="text-slate-300 tabular-nums">
                           {new Date(log.createdAt).toLocaleString()}
                         </span>
                       </div>
                       <p className="text-slate-300">{log.details}</p>
                       {log.oldValue && (
-                        <div className="font-mono text-[11px] text-slate-400">
+                        <div className="font-mono text-[13px] text-slate-300">
                           Previous: {log.oldValue}
                         </div>
                       )}
                       {log.newValue && (
-                        <div className="font-mono text-[11px] text-[#2DD4BF]">
+                        <div className="font-mono text-[13px] text-[#2DD4BF]">
                           Updated: {log.newValue}
                         </div>
                       )}
@@ -2516,10 +2516,10 @@ export const SellerConsole: React.FC<SellerConsoleProps> = ({
           {currentTab === 'settings' && (
             <div className="max-w-5xl mx-auto grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
               {/* Left 7 Columns: Separated Testnet & Mainnet Wallet Profiles with Re-Auth + 2FA */}
-              <div className="lg:col-span-7 bg-[#131C2E] border border-slate-800 rounded-2xl p-6 space-y-5">
+              <div className="lg:col-span-7 bg-[#1C2430] border border-slate-600 rounded-2xl p-6 space-y-5">
                 <div>
-                  <h2 className="text-lg font-bold text-[#F3F4F6]">{t.walletSettingsTitle}</h2>
-                  <p className="text-xs text-slate-400 mt-0.5">{' '}{uiText(locale, "Profil wallet penerima disimpan terpisah untuk")}{' '}<strong>TESTNET</strong>{' '}{uiText(locale, "dan")}{' '}{' '}
+                  <h2 className="text-lg font-bold text-[#F8FAFC]">{t.walletSettingsTitle}</h2>
+                  <p className="text-xs text-slate-300 mt-0.5">{' '}{uiText(locale, "Profil wallet penerima disimpan terpisah untuk")}{' '}<strong>TESTNET</strong>{' '}{uiText(locale, "dan")}{' '}{' '}
                     <strong>MAINNET</strong>{' '}{uiText(locale, ". Setiap pesanan mengunci alamat penerima saat dibuat.")}{' '}</p>
                 </div>
 
@@ -2528,7 +2528,7 @@ export const SellerConsole: React.FC<SellerConsoleProps> = ({
                   <div className="p-4 rounded-2xl bg-amber-50/90 border border-amber-300 space-y-3">
                     <div className="flex items-center justify-between">
                       <span className="text-xs font-extrabold uppercase tracking-wider px-2.5 py-0.5 rounded-full bg-amber-900 text-amber-100">{' '}{uiText(locale, "1. Profil Wallet TESTNET (Default Pengujian)")}{' '}</span>
-                      <span className="text-[11px] font-mono text-amber-900">
+                      <span className="text-[13px] font-mono text-amber-900">
                         Nimiq Testnet & Amoy 80002
                       </span>
                     </div>
@@ -2578,7 +2578,7 @@ export const SellerConsole: React.FC<SellerConsoleProps> = ({
                         placeholder={uiText(locale, "Kosongkan jika belum ada kontrak TEST TOKEN di Amoy")}
                         className="w-full bg-white border border-amber-400 rounded-xl px-3.5 py-2 text-xs font-mono text-stone-900"
                       />
-                      <p className="text-[11px] text-amber-900 mt-1 leading-relaxed">
+                      <p className="text-[13px] text-amber-900 mt-1 leading-relaxed">
                         <strong>{' '}{uiText(locale, "Larangan Keamanan:")}{' '}</strong>{' '}{uiText(locale, "Alamat kontrak USDT Mainnet (")}{' '}<code>{POLYGON_USDT_CONTRACT}</code>{' '}{uiText(locale, ") tidak dapat digunakan di Amoy. Simpan kontrak token uji Amoy yang valid sebelum mengaktifkan pembayaran token.")}{' '}</p>
                     </div>
                   </div>
@@ -2589,7 +2589,7 @@ export const SellerConsole: React.FC<SellerConsoleProps> = ({
                       <span className="text-xs font-extrabold uppercase tracking-wider px-2.5 py-0.5 rounded-full bg-emerald-900 text-emerald-100">
                         2. Profil Wallet MAINNET (Dana Asli Produksi)
                       </span>
-                      <span className="text-[11px] font-mono text-emerald-900">
+                      <span className="text-[13px] font-mono text-emerald-900">
                         Nimiq Mainnet & Polygon 137
                       </span>
                     </div>
@@ -2627,13 +2627,13 @@ export const SellerConsole: React.FC<SellerConsoleProps> = ({
                     </div>
                   </div>
 
-                  <div className="p-4 rounded-xl bg-[#0B101C] border border-slate-800 space-y-3">
+                  <div className="p-4 rounded-xl bg-[#0B0F14] border border-slate-600 space-y-3">
                     <div className="text-xs font-semibold text-[#DFC496]">
                       Re-Authentication Required for Wallet Changes
                     </div>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                       <div>
-                        <label className="block text-[11px] text-slate-400 mb-1">
+                        <label className="block text-[13px] text-slate-300 mb-1">
                           Current Seller Password
                         </label>
                         <input
@@ -2642,11 +2642,11 @@ export const SellerConsole: React.FC<SellerConsoleProps> = ({
                           value={walletConfirmPass}
                           onChange={(e) => setWalletConfirmPass(e.target.value)}
                           placeholder="Enter current password"
-                          className="w-full bg-[#131C2E] border border-slate-700 rounded-lg px-3 py-1.5 text-xs text-[#F3F4F6]"
+                          className="w-full bg-[#1C2430] border border-slate-500 rounded-lg px-3 py-1.5 text-xs text-[#F8FAFC]"
                         />
                       </div>
                       <div>
-                        <label className="block text-[11px] text-slate-400 mb-1">
+                        <label className="block text-[13px] text-slate-300 mb-1">
                           2FA Authenticator Code
                         </label>
                         <input
@@ -2655,7 +2655,7 @@ export const SellerConsole: React.FC<SellerConsoleProps> = ({
                           value={walletConfirmTotp}
                           onChange={(e) => setWalletConfirmTotp(e.target.value)}
                           placeholder="6-digit TOTP"
-                          className="w-full bg-[#131C2E] border border-slate-700 rounded-lg px-3 py-1.5 text-xs font-mono text-[#F3F4F6]"
+                          className="w-full bg-[#1C2430] border border-slate-500 rounded-lg px-3 py-1.5 text-xs font-mono text-[#F8FAFC]"
                         />
                       </div>
                     </div>
@@ -2684,14 +2684,14 @@ export const SellerConsole: React.FC<SellerConsoleProps> = ({
               {/* Right 5 Columns: Mainnet Readiness Verification + Cashier Audio */}
               <div className="lg:col-span-5 space-y-6">
                 {/* Mainnet Pre-Production Readiness Check Card */}
-                <div className="bg-[#131C2E] border border-slate-800 rounded-2xl p-6 space-y-4">
+                <div className="bg-[#1C2430] border border-slate-600 rounded-2xl p-6 space-y-4">
                   <div className="flex items-center justify-between">
-                    <h2 className="text-base font-bold text-[#F3F4F6] flex items-center gap-2">
+                    <h2 className="text-base font-bold text-[#F8FAFC] flex items-center gap-2">
                       <ShieldCheck className="w-4 h-4 text-[#14B8A6]" />
                       <span>{' '}{uiText(locale, "Pemeriksaan Kesiapan Produksi Mainnet")}{' '}</span>
                     </h2>
                   </div>
-                  <p className="text-xs text-slate-400 leading-relaxed">{' '}{uiText(locale, "Sebelum produksi Mainnet, jalankan pemeriksaan konfigurasi dan uji Mainnet nominal kecil yang disetujui pengguna. Keberhasilan Testnet")}{' '}{' '}
+                  <p className="text-xs text-slate-300 leading-relaxed">{' '}{uiText(locale, "Sebelum produksi Mainnet, jalankan pemeriksaan konfigurasi dan uji Mainnet nominal kecil yang disetujui pengguna. Keberhasilan Testnet")}{' '}{' '}
                     <strong>{' '}{uiText(locale, "tidak")}{' '}</strong>{' '}{uiText(locale, "membuktikan jalur USDT Mainnet, fee, atau relayer pasti identik.")}{' '}</p>
 
                   <button
@@ -2704,7 +2704,7 @@ export const SellerConsole: React.FC<SellerConsoleProps> = ({
                   {mainnetReadiness && (
                     <div
                       data-testid="mainnet-readiness-result"
-                      className="p-3.5 rounded-xl bg-[#0B101C] border border-slate-800 text-xs space-y-2"
+                      className="p-3.5 rounded-xl bg-[#0B0F14] border border-slate-600 text-xs space-y-2"
                     >
                       <div className="flex items-center justify-between font-bold">
                         <span>{' '}{uiText(locale, "Status Kesiapan Mainnet:")}{' '}</span>
@@ -2716,7 +2716,7 @@ export const SellerConsole: React.FC<SellerConsoleProps> = ({
                           {mainnetReadiness.readyForMainnet ? uiText(locale, "✓ SIAP UJI NOMINAL KECIL") : uiText(locale, "⚠ PERLU DILENGKAPI")}
                         </span>
                       </div>
-                      <ul className="space-y-1 text-[11px] font-mono">
+                      <ul className="space-y-1 text-[13px] font-mono">
                         {Object.entries(mainnetReadiness.checks).map(([k, v]) => (
                           <li key={k} className="flex items-center justify-between">
                             <span>{k}</span>
@@ -2724,7 +2724,7 @@ export const SellerConsole: React.FC<SellerConsoleProps> = ({
                           </li>
                         ))}
                       </ul>
-                      <p className="text-[11px] text-amber-800 font-medium pt-1 border-t border-slate-800">
+                      <p className="text-[13px] text-amber-800 font-medium pt-1 border-t border-slate-600">
                         {mainnetReadiness.warning}
                       </p>
                     </div>
@@ -2732,8 +2732,8 @@ export const SellerConsole: React.FC<SellerConsoleProps> = ({
                 </div>
 
                 {/* Cashier Audio & Multi-Language Voice Settings */}
-                <div className="bg-[#131C2E] border border-slate-800 rounded-2xl p-6 space-y-4">
-                  <h2 className="text-lg font-bold text-[#F3F4F6]">{t.audioSettingsTitle}</h2>
+                <div className="bg-[#1C2430] border border-slate-600 rounded-2xl p-6 space-y-4">
+                  <h2 className="text-lg font-bold text-[#F8FAFC]">{t.audioSettingsTitle}</h2>
 
                   <button
                     type="button"
@@ -2763,7 +2763,7 @@ export const SellerConsole: React.FC<SellerConsoleProps> = ({
                           setVoiceLocale(next);
                           cashierAudio.setConfig({ voiceLocale: next });
                         }}
-                        className="w-full bg-[#0B101C] border border-slate-700 rounded-xl px-3 py-2 text-xs text-[#F3F4F6]"
+                        className="w-full bg-[#0B0F14] border border-slate-500 rounded-xl px-3 py-2 text-xs text-[#F8FAFC]"
                       >
                         {(Object.keys(LOCALE_METADATA) as SupportedLocale[]).map((loc) => (
                           <option key={loc} value={loc}>
@@ -2820,7 +2820,7 @@ export const SellerConsole: React.FC<SellerConsoleProps> = ({
                             true
                           );
                         }}
-                        className="py-2 px-3 rounded-xl bg-[#0B101C] border border-slate-700 hover:border-slate-500 text-slate-200 font-medium cursor-pointer"
+                        className="py-2 px-3 rounded-xl bg-[#0B0F14] border border-slate-500 hover:border-slate-500 text-slate-200 font-medium cursor-pointer"
                       >
                         🔊 {t.testPaymentRequestVoice} ({activeEnv.toUpperCase()})
                       </button>
@@ -2837,7 +2837,7 @@ export const SellerConsole: React.FC<SellerConsoleProps> = ({
                             true
                           );
                         }}
-                        className="py-2 px-3 rounded-xl bg-[#0B101C] border border-slate-700 hover:border-slate-500 text-emerald-300 font-medium cursor-pointer"
+                        className="py-2 px-3 rounded-xl bg-[#0B0F14] border border-slate-500 hover:border-slate-500 text-emerald-300 font-medium cursor-pointer"
                       >
                         🔊 {t.testPaymentConfirmedVoice} ({activeEnv.toUpperCase()})
                       </button>

@@ -254,8 +254,8 @@ export const CustomerCheckout: React.FC<CustomerCheckoutProps> = ({
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-[#0B101C] text-[#F3F4F6] flex items-center justify-center p-6">
-        <div className="w-full max-w-md bg-[#131C2E] border border-slate-800 rounded-2xl p-8 space-y-4">
+      <div className="min-h-screen bg-[#0B0F14] text-[#F8FAFC] flex items-center justify-center p-6">
+        <div className="w-full max-w-md bg-[#1C2430] border border-slate-600 rounded-2xl p-8 space-y-4">
           <div className="h-6 w-40 bg-slate-800 rounded" />
           <div className="h-24 w-full bg-slate-800/60 rounded-xl" />
           <div className="h-48 w-full bg-slate-800/40 rounded-xl" />
@@ -266,7 +266,7 @@ export const CustomerCheckout: React.FC<CustomerCheckoutProps> = ({
 
   if (error || !order) {
     return (
-      <div className="min-h-screen bg-[#0B101C] text-[#F3F4F6] flex flex-col items-center justify-center p-6 text-center space-y-4">
+      <div className="min-h-screen bg-[#0B0F14] text-[#F8FAFC] flex flex-col items-center justify-center p-6 text-center space-y-4">
         <AlertTriangle className="w-10 h-10 text-amber-400" />
         <h1 className="text-xl font-semibold">{error || 'Order not found'}</h1>
         <button
@@ -298,7 +298,7 @@ export const CustomerCheckout: React.FC<CustomerCheckoutProps> = ({
       : `https://nimtera.store/s/${order.storeSlug}/order/${order.publicToken}?net=${order.network}&env=${orderEnvironment}`;
 
   return (
-    <div className="min-h-screen bg-[#0B101C] text-[#F3F4F6] relative flex flex-col justify-between py-4 px-4 sm:px-8">
+    <div className="min-h-screen bg-[#0B0F14] text-[#F8FAFC] relative flex flex-col justify-between py-4 px-4 sm:px-8">
       {/* Subtle Night Market atmospheric radial gradient backdrop */}
       <div
         className="fixed inset-0 pointer-events-none opacity-35"
@@ -315,7 +315,7 @@ export const CustomerCheckout: React.FC<CustomerCheckoutProps> = ({
           <button
             type="button"
             onClick={() => onBackToStore(order.storeSlug)}
-            className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl bg-[#131C2E] border border-slate-800 text-xs sm:text-sm font-medium text-slate-300 hover:text-[#F3F4F6] hover:border-slate-700 transition-colors cursor-pointer"
+            className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl bg-[#1C2430] border border-slate-600 text-xs sm:text-sm font-medium text-slate-300 hover:text-[#F8FAFC] hover:border-slate-500 transition-colors cursor-pointer"
           >
             <ArrowLeft className="w-4 h-4" />
             <span>{order.storeName}</span>
@@ -327,7 +327,7 @@ export const CustomerCheckout: React.FC<CustomerCheckoutProps> = ({
               aria-label="Checkout Language"
               value={locale}
               onChange={(e) => onChangeLocale(e.target.value as SupportedLocale)}
-              className="bg-[#131C2E] border border-slate-700/80 rounded-xl px-3 py-1.5 text-xs font-medium text-[#F3F4F6] cursor-pointer"
+              className="bg-[#1C2430] border border-slate-500/80 rounded-xl px-3 py-1.5 text-xs font-medium text-[#F8FAFC] cursor-pointer"
             >
               {(Object.keys(LOCALE_METADATA) as SupportedLocale[]).map((loc) => (
                 <option key={loc} value={loc}>
@@ -349,7 +349,7 @@ export const CustomerCheckout: React.FC<CustomerCheckoutProps> = ({
         >
           <div className="flex items-center gap-2">
             <span
-              className={`px-2.5 py-0.5 rounded-full font-extrabold uppercase tracking-wider text-[11px] ${
+              className={`px-2.5 py-0.5 rounded-full font-extrabold uppercase tracking-wider text-[13px] ${
                 isTestnetOrder
                   ? 'bg-amber-900 text-amber-100'
                   : 'bg-emerald-900 text-emerald-100'
@@ -371,7 +371,7 @@ export const CustomerCheckout: React.FC<CustomerCheckoutProps> = ({
             href={netSpec.explorerBaseUrl}
             target="_blank"
             rel="noreferrer"
-            className="font-mono text-[11px] underline font-semibold shrink-0"
+            className="font-mono text-[13px] underline font-semibold shrink-0"
           >
             Explorer: {netSpec.networkDisplayName} ↗
           </a>
@@ -380,18 +380,18 @@ export const CustomerCheckout: React.FC<CustomerCheckoutProps> = ({
 
       {/* Main Centered Checkout Card */}
       <main className="relative z-10 my-auto py-1 flex flex-col items-center">
-        <div className="w-full max-w-[440px] bg-[#131C2E] border border-slate-700/80 rounded-3xl p-4 sm:p-5 shadow-2xl space-y-3.5">
+        <div className="w-full max-w-[440px] bg-[#1C2430] border border-slate-500/80 rounded-3xl p-4 sm:p-5 shadow-2xl space-y-3.5">
           {/* Card Top Header: Store Identity + NimTera Logo */}
           <div className="flex items-center justify-between gap-3">
             <div className="flex items-center gap-2.5 min-w-0">
-              <div className="w-8 h-8 rounded-full bg-[#1E293B] border border-slate-700 flex items-center justify-center text-xs font-bold text-[#DFC496] shrink-0">
+              <div className="w-8 h-8 rounded-full bg-[#263242] border border-slate-500 flex items-center justify-center text-xs font-bold text-[#DFC496] shrink-0">
                 {order.storeName.slice(0, 1)}
               </div>
               <div className="min-w-0">
-                <div className="text-sm font-semibold text-[#F3F4F6] truncate">
+                <div className="text-sm font-semibold text-[#F8FAFC] truncate">
                   {order.storeName}
                 </div>
-                <div className="text-[11px] text-slate-400">
+                <div className="text-[13px] text-slate-300">
                   merchant · {order.fulfillmentMode.replace('_', '-')} ·{' '}
                   <strong className={isTestnetOrder ? 'text-amber-300' : 'text-emerald-300'}>
                     {isTestnetOrder ? 'TESTNET' : 'MAINNET'}
@@ -404,7 +404,7 @@ export const CustomerCheckout: React.FC<CustomerCheckoutProps> = ({
           </div>
 
           {/* Slate-Blue Checkout Header Banner */}
-          <div className="bg-[#223C51] text-[#F3F4F6] rounded-2xl py-2.5 px-4 text-center">
+          <div className="bg-[#223C51] text-[#F8FAFC] rounded-2xl py-2.5 px-4 text-center">
             <h1 className="text-lg font-bold tracking-tight text-[#F8FAFC]">
               {t.checkoutTitle} {isTestnetOrder ? '(TESTNET)' : '(MAINNET)'}
             </h1>
@@ -414,14 +414,14 @@ export const CustomerCheckout: React.FC<CustomerCheckoutProps> = ({
           </div>
 
           {/* Itemized Breakdown */}
-          <div className="bg-[#182338] border border-slate-800/90 rounded-2xl p-3 space-y-2">
+          <div className="bg-[#263242] border border-slate-600/90 rounded-2xl p-3 space-y-2">
             <div className="flex items-start gap-3">
               {order.items[0]?.imageUrl && (
                 <img
                   src={order.items[0].imageUrl}
                   alt={order.items[0].name}
                   referrerPolicy="no-referrer"
-                  className="w-12 h-12 rounded-xl object-cover shrink-0 border border-slate-700/60"
+                  className="w-12 h-12 rounded-xl object-cover shrink-0 border border-slate-500/60"
                 />
               )}
               <div className="flex-1 min-w-0 space-y-1.5">
@@ -430,11 +430,11 @@ export const CustomerCheckout: React.FC<CustomerCheckoutProps> = ({
                     key={item.productId}
                     className="flex items-baseline justify-between gap-2 text-xs sm:text-sm"
                   >
-                    <div className="min-w-0 truncate text-[#F3F4F6] font-medium">
+                    <div className="min-w-0 truncate text-[#F8FAFC] font-medium">
                       <span>{item.name}</span>{' '}
-                      <span className="text-slate-400 tabular-nums">x{item.quantity}</span>
+                      <span className="text-slate-300 tabular-nums">x{item.quantity}</span>
                     </div>
-                    <div className="font-semibold text-[#F3F4F6] tabular-nums shrink-0">
+                    <div className="font-semibold text-[#F8FAFC] tabular-nums shrink-0">
                       {formatAssetAmount(item.lineTotalBase, order.asset, orderEnvironment)}
                     </div>
                   </div>
@@ -443,7 +443,7 @@ export const CustomerCheckout: React.FC<CustomerCheckoutProps> = ({
             </div>
 
             {order.tableOrNote && (
-              <div className="text-[11px] text-slate-400 pt-1.5 border-t border-slate-800/80">
+              <div className="text-[13px] text-slate-300 pt-1.5 border-t border-slate-600/80">
                 Note: <span className="text-slate-300">{order.tableOrNote}</span>
               </div>
             )}
@@ -455,12 +455,12 @@ export const CustomerCheckout: React.FC<CustomerCheckoutProps> = ({
               <span className="text-sm font-medium text-slate-300">{t.totalLabel}</span>
               <span
                 data-testid="checkout-total-amount"
-                className="text-lg font-bold text-[#F3F4F6] tabular-nums"
+                className="text-lg font-bold text-[#F8FAFC] tabular-nums"
               >
                 {order.amountFormatted}
               </span>
             </div>
-            <div className="flex items-center justify-between text-xs text-slate-400">
+            <div className="flex items-center justify-between text-xs text-slate-300">
               <span>{' '}{uiText(locale, "Jaringan Terkunci (Locked)")}{' '}</span>
               <span
                 data-testid="checkout-locked-network"
@@ -469,14 +469,14 @@ export const CustomerCheckout: React.FC<CustomerCheckoutProps> = ({
                 {order.network} {order.snapshotChainId ? `(Chain ID ${order.snapshotChainId})` : ''}
               </span>
             </div>
-            <div className="flex items-center justify-between text-xs text-slate-400">
+            <div className="flex items-center justify-between text-xs text-slate-300">
               <span>Label Aset</span>
               <span className="font-bold">
                 {order.assetLabel || netSpec.assetDisplayLabel}
               </span>
             </div>
             {order.asset === 'USDT' && (
-              <div className="flex items-center justify-between text-[11px] text-slate-400">
+              <div className="flex items-center justify-between text-[13px] text-slate-300">
                 <span>
                   {order.network === 'polygon-amoy'
                     ? 'Amoy TEST TOKEN Contract'
@@ -494,7 +494,7 @@ export const CustomerCheckout: React.FC<CustomerCheckoutProps> = ({
             {order.network === 'polygon-amoy' && !order.snapshotTokenContract && (
               <div
                 data-testid="checkout-amoy-contract-guard"
-                className="p-2.5 rounded-xl bg-amber-100 border border-amber-400 text-amber-950 text-[11px] leading-relaxed"
+                className="p-2.5 rounded-xl bg-amber-100 border border-amber-400 text-amber-950 text-[13px] leading-relaxed"
               >
                 <strong>{' '}{uiText(locale, "Pengaman Kontrak Polygon Amoy (Chain ID 80002):")}{' '}</strong>{' '}{uiText(locale, "Kontrak")}{' '}{' '}
                 <code>TEST TOKEN</code>{' '}{uiText(locale, "belum dikonfigurasi pada toko ini. Sesuai aturan keamanan, NimTera")}{' '}<strong>{' '}{uiText(locale, "menolak penggunaan alamat kontrak USDT Mainnet")}{' '}</strong> (
@@ -503,17 +503,17 @@ export const CustomerCheckout: React.FC<CustomerCheckoutProps> = ({
           </div>
 
           {/* Recipient Box + Static QR Container */}
-          <div className="bg-[#182338] border border-slate-800 rounded-2xl p-3.5 space-y-3">
-            <div className="bg-[#11192A] border border-slate-800/90 rounded-xl p-2.5 space-y-1">
+          <div className="bg-[#263242] border border-slate-600 rounded-2xl p-3.5 space-y-3">
+            <div className="bg-[#151E29] border border-slate-600/90 rounded-xl p-2.5 space-y-1">
               <div className="flex items-center justify-between gap-2">
-                <span className="text-xs font-semibold text-[#F3F4F6] font-mono">
+                <span className="text-xs font-semibold text-[#F8FAFC] font-mono">
                   {t.recipientLabel} ({isTestnetOrder ? 'TESTNET' : 'MAINNET'}): {shortenedRecipient}
                 </span>
                 <div className="flex items-center gap-1.5">
                   <button
                     type="button"
                     onClick={() => setShowFullRecipient(!showFullRecipient)}
-                    className="text-[11px] text-[#2DD4BF] hover:underline cursor-pointer"
+                    className="text-[13px] text-[#2DD4BF] hover:underline cursor-pointer"
                   >
                     {showFullRecipient ? 'Hide' : 'Inspect full'}
                   </button>
@@ -534,19 +534,19 @@ export const CustomerCheckout: React.FC<CustomerCheckoutProps> = ({
               {showFullRecipient && (
                 <div
                   data-testid="full-snapshot-recipient"
-                  className="text-[11px] font-mono text-[#DFC496] break-all bg-[#0B101C] p-2 rounded-lg border border-slate-800"
+                  className="text-[13px] font-mono text-[#DFC496] break-all bg-[#0B0F14] p-2 rounded-lg border border-slate-600"
                 >
                   {order.snapshotRecipient}
                 </div>
               )}
-              <p className="text-[11px] text-slate-400">{t.verifyRecipientHint}</p>
+              <p className="text-[13px] text-slate-300">{t.verifyRecipientHint}</p>
             </div>
 
             {/* Static High-Contrast QR Code with Network Identity Badge */}
             <div className="flex flex-col items-center space-y-2">
               <div
                 data-testid="qr-network-badge"
-                className={`px-3 py-0.5 rounded-full text-[11px] font-extrabold uppercase tracking-wider ${
+                className={`px-3 py-0.5 rounded-full text-[13px] font-extrabold uppercase tracking-wider ${
                   isTestnetOrder
                     ? 'bg-amber-900 text-amber-100'
                     : 'bg-emerald-900 text-emerald-100'
@@ -572,12 +572,12 @@ export const CustomerCheckout: React.FC<CustomerCheckoutProps> = ({
               </div>
 
               {qrUriError && (
-                <p className="text-[11px] text-amber-700 font-medium text-center max-w-xs">
+                <p className="text-[13px] text-amber-700 font-medium text-center max-w-xs">
                   {qrUriError}
                 </p>
               )}
 
-              <p className="text-[11px] text-slate-400 text-center max-w-xs leading-snug">
+              <p className="text-[13px] text-slate-300 text-center max-w-xs leading-snug">
                 {qrMode === 'checkout_link'
                   ? uiChoice(locale, `${t.qrCheckoutExplanation} (Mempertahankan parameter jaringan ?net=${order.network}&env=${orderEnvironment})`, `${t.qrCheckoutExplanation} (Preserves network parameters ?net=${order.network}&env=${orderEnvironment})`)
                   : uiChoice(locale, `Direct Wallet URI QR (${order.network}): Mengenkode penerima, nominal presisi, dan jaringan pesanan.`, `Direct Wallet URI QR (${order.network}): Encodes the recipient, exact amount and invoice network.`)}
@@ -610,7 +610,7 @@ export const CustomerCheckout: React.FC<CustomerCheckoutProps> = ({
                 data-testid="pay-in-wallet-btn"
                 onClick={handlePayInNimiqPay}
                 disabled={order.paymentStatus === 'confirmed'}
-                className="w-full py-3 px-5 rounded-xl bg-[#14B8A6] hover:bg-[#0D9488] disabled:opacity-50 text-[#071318] font-semibold text-sm transition-colors cursor-pointer shadow"
+                className="w-full py-3 px-5 rounded-xl bg-[#14B8A6] hover:bg-[#0D9488] disabled:opacity-70 text-[#071318] font-semibold text-sm transition-colors cursor-pointer shadow"
               >
                 {order.paymentStatus === 'confirmed'
                   ? `✓ ${t.statusConfirmed} (${order.network})`
@@ -623,7 +623,7 @@ export const CustomerCheckout: React.FC<CustomerCheckoutProps> = ({
                   onClick={() =>
                     setQrMode(order.asset === 'USDT' ? 'checkout_link' : qrMode === 'checkout_link' ? 'wallet_uri' : 'checkout_link')
                   }
-                  className="py-2 px-3 rounded-xl bg-[#11192A] border border-slate-700/80 hover:border-slate-600 text-xs font-medium text-slate-300 transition-colors cursor-pointer"
+                  className="py-2 px-3 rounded-xl bg-[#151E29] border border-slate-500/80 hover:border-slate-600 text-xs font-medium text-slate-300 transition-colors cursor-pointer"
                 >
                   {qrMode === 'checkout_link' ? 'Show Direct URI QR' : 'Show Checkout Link QR'}
                 </button>
@@ -631,7 +631,7 @@ export const CustomerCheckout: React.FC<CustomerCheckoutProps> = ({
                 <button
                   type="button"
                   onClick={() => handleCopy(checkoutShareUrl, 'link')}
-                  className="py-2 px-3 rounded-xl bg-[#11192A] border border-slate-700/80 hover:border-slate-600 text-xs font-medium text-slate-300 flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
+                  className="py-2 px-3 rounded-xl bg-[#151E29] border border-slate-500/80 hover:border-slate-600 text-xs font-medium text-slate-300 flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
                 >
                   {copiedField === 'link' ? (
                     <>
@@ -651,7 +651,7 @@ export const CustomerCheckout: React.FC<CustomerCheckoutProps> = ({
             {/* Honest Payment & Fulfillment Status Banner */}
             <div
               data-testid="checkout-payment-status"
-              className="rounded-xl p-3 bg-[#11192A] border border-slate-800 text-xs space-y-2"
+              className="rounded-xl p-3 bg-[#151E29] border border-slate-600 text-xs space-y-2"
             >
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <OrderStatusBadge
@@ -667,10 +667,10 @@ export const CustomerCheckout: React.FC<CustomerCheckoutProps> = ({
               </div>
 
               {order.paymentReviewReason && (
-                <p className="text-[11px] text-amber-800 font-medium">{order.paymentReviewReason}</p>
+                <p className="text-[13px] text-amber-800 font-medium">{order.paymentReviewReason}</p>
               )}
               {order.paymentStatus === 'unpaid' && (
-                <p className="text-[11px] text-slate-400">{t.awaitingPaymentNotice}</p>
+                <p className="text-[13px] text-slate-300">{t.awaitingPaymentNotice}</p>
               )}
             </div>
 
@@ -687,27 +687,27 @@ export const CustomerCheckout: React.FC<CustomerCheckoutProps> = ({
             {/* Honest Nimiq Pay Host Capability & Testnet Availability Report */}
             <div
               data-testid="nimiq-host-capability-report"
-              className="p-3 rounded-xl bg-[#11192A] border border-slate-800 text-[11px] space-y-1.5"
+              className="p-3 rounded-xl bg-[#151E29] border border-slate-600 text-[13px] space-y-1.5"
             >
-              <div className="flex items-center justify-between font-semibold text-[#F3F4F6]">
+              <div className="flex items-center justify-between font-semibold text-[#F8FAFC]">
                 <span className="inline-flex items-center gap-1.5">
                   <ShieldAlert className="w-3.5 h-3.5 text-amber-700 shrink-0" />
                   <span>Diagnostik Host Nimiq Pay & Ketersediaan Testnet</span>
                 </span>
-                <span className="font-mono text-[10px] px-2 py-0.5 rounded bg-[#182338] border border-slate-700">
+                <span className="font-mono text-xs px-2 py-0.5 rounded bg-[#263242] border border-slate-500">
                   EVM Chain: {detectedEvmChainId ?? uiText(locale, "Tidak terdeteksi")}
                 </span>
               </div>
-              <p className="text-slate-400 leading-relaxed">
+              <p className="text-slate-300 leading-relaxed">
                 {capabilities.hostLimitationSummary}
               </p>
             </div>
 
             {/* On-chain Transaction Hash Verification Input */}
-            <div className="pt-2 border-t border-slate-800/80 space-y-2">
+            <div className="pt-2 border-t border-slate-600/80 space-y-2">
               <label
                 htmlFor="tx-hash-verify-input"
-                className="block text-[11px] font-medium text-slate-400"
+                className="block text-[13px] font-medium text-slate-300"
               >
                 {t.txHashLabel}{' '}{uiText(locale, "(Diverifikasi ketat hanya di RPC")}{' '}<strong className="font-mono">{order.network}</strong>)
               </label>
@@ -718,13 +718,13 @@ export const CustomerCheckout: React.FC<CustomerCheckoutProps> = ({
                   value={txHashInput}
                   onChange={(e) => setTxHashInput(e.target.value)}
                   placeholder={`Hash tx di ${order.network}...`}
-                  className="flex-1 bg-[#0B101C] border border-slate-700/80 rounded-xl px-3 py-1.5 text-xs font-mono text-[#F3F4F6]"
+                  className="flex-1 bg-[#0B0F14] border border-slate-500/80 rounded-xl px-3 py-1.5 text-xs font-mono text-[#F8FAFC]"
                 />
                 <button
                   type="button"
                   disabled={verifying}
                   onClick={() => submitVerification()}
-                  className="px-3.5 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-xs font-semibold text-[#F3F4F6] shrink-0 cursor-pointer"
+                  className="px-3.5 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-xs font-semibold text-[#F8FAFC] shrink-0 cursor-pointer"
                 >
                   {verifying ? '...' : 'Verify'}
                 </button>
@@ -734,10 +734,10 @@ export const CustomerCheckout: React.FC<CustomerCheckoutProps> = ({
           </div>
 
           {/* Honest Disclaimers */}
-          <div className="text-center text-[11px] text-slate-400 space-y-0.5 leading-relaxed">
+          <div className="text-center text-[13px] text-slate-300 space-y-0.5 leading-relaxed">
             <p>{t.directNoEscrowNotice}</p>
             <p>{t.noConversionNotice}</p>
-            <p className="text-slate-400">
+            <p className="text-slate-300">
               Standard network fees apply in your wallet. Expires:{' '}
               {new Date(order.expiresAt).toLocaleTimeString([], {
                 hour: '2-digit',
@@ -748,7 +748,7 @@ export const CustomerCheckout: React.FC<CustomerCheckoutProps> = ({
         </div>
       </main>
 
-      <footer className="relative z-10 text-center text-xs text-slate-400 pt-4">
+      <footer className="relative z-10 text-center text-xs text-slate-300 pt-4">
         NimTera — {t.independentNotice}
       </footer>
     </div>

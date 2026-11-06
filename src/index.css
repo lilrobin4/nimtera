@@ -1,6 +1,14 @@
 @import "tailwindcss";
 @custom-variant dark (&:where(.dark, .dark *));
 
+/* Readable sizes for dense cashier tables and field hints, not just hero headings. */
+@theme {
+  --text-xs: 0.8125rem;
+  --text-xs--line-height: 1.5;
+  --text-sm: 0.9375rem;
+  --text-sm--line-height: 1.6;
+}
+
 @layer base {
   :root {
     --font-serif: "Cormorant Garamond", Georgia, serif;
@@ -10,13 +18,13 @@
 
   body {
     font-family: var(--font-sans);
-    background-color: #0B101C;
-    background-image:
-      radial-gradient(circle at 14% 18%, rgba(217, 192, 150, 0.04), transparent 45%),
-      radial-gradient(circle at 86% 78%, rgba(20, 184, 166, 0.035), transparent 50%),
-      linear-gradient(135deg, #0B101C 0%, #0E1525 55%, #101B2D 100%);
-    background-attachment: fixed;
-    color: #F3F4F6;
+    background-color: #0B0F14;
+    background-image: none;
+    color: #F8FAFC;
+    font-size: 16px;
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
     overflow-x: hidden;
   }
 
@@ -32,7 +40,9 @@
 /* Native controls follow the same dark palette; QR codes keep their white canvas. */
 @layer base {
   :root { color-scheme: dark; }
-  input::placeholder, textarea::placeholder { color: #94A3B8; opacity: 1; }
+  input::placeholder, textarea::placeholder { color: #B8C4D6; opacity: 1; }
+  input.bg-white::placeholder { color: #475569; }
+  label { font-weight: 600; }
   ::selection { background: #2DD4BF; color: #071318; }
   :focus-visible { outline: 2px solid #2DD4BF; outline-offset: 3px; }
 }

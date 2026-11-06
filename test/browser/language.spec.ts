@@ -113,3 +113,19 @@ test('public help contains user guidance only in all six languages', async ({ pa
     await page.keyboard.press('Escape'); await expect(dialog).toHaveCount(0); await expect(opener).toBeFocused();
   }
 });
+
+test('form text, hints and placeholders use the clearer high-contrast palette', async ({ page }) => {
+  await mockApi(page);await page.goto('/seller/login');
+  const input=page.locator('#seller-email-input');await expect(input).toBeVisible();
+  await expect(page.locator('body')).toHaveCSS('background-color','rgb(11, 15, 20)');
+  await expect(page.locator('body')).toHaveCSS('color','rgb(248, 250, 252)');
+  await expect(input).toHaveCSS('font-size','15px');
+  await expect(page.locator('label[for="seller-email-input"]')).toHaveCSS('font-size','13px');
+  const contrast=await input.evaluate(el=>{
+    const style=getComputedStyle(el),placeholder=getComputedStyle(el,'::placeholder');
+    const canvas=document.createElement('canvas');canvas.width=canvas.height=1;const ctx=canvas.getContext('2d')!;
+    const lum=(color:string)=>{ctx.clearRect(0,0,1,1);ctx.fillStyle=color;ctx.fillRect(0,0,1,1);const c=Array.from(ctx.getImageData(0,0,1,1).data).slice(0,3).map(v=>v/255).map(v=>v<=.04045?v/12.92:((v+.055)/1.055)**2.4);return c.reduce((s,v,i)=>s+v*[.2126,.7152,.0722][i],0);};
+    const bg=lum(style.backgroundColor);return {text:(lum(style.color)+.05)/(bg+.05),placeholder:(lum(placeholder.color)+.05)/(bg+.05)};
+  });
+  expect(contrast.text).toBeGreaterThanOrEqual(7);expect(contrast.placeholder).toBeGreaterThanOrEqual(7);
+});
