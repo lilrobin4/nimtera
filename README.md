@@ -2,7 +2,7 @@
 
 A Night Market-style storefront, cashier and order-management app for independent sellers. Non-custodial and independent; not an official Nimiq product.
 
-**Live app:** [nimtera.vercel.app](https://nimtera.vercel.app) · **Status:** testnet beta
+**Live app:** [nimtera.store](https://nimtera.store) · **Status:** testnet beta
 
 ## What you can do
 
@@ -17,7 +17,7 @@ Photo uploads support JPG, PNG and WebP up to 5 MB / 16 MP, with optimization an
 
 ## Try the seller flow
 
-1. Open [seller registration](https://nimtera.vercel.app/seller/setup) and use your own email, a password of at least 15 characters, shop details and a matching testnet receiving address.
+1. Open [seller registration](https://nimtera.store/seller/setup) and use your own email, a password of at least 15 characters, shop details and a matching testnet receiving address.
 2. Add products and optionally upload your shop logo. Registration does **not** require an authenticator.
 3. Share the storefront link or use the cashier. Check the invoice's network and recipient before testing a payment.
 4. Enable cashier audio with a tap. Choose the speech language/voice in Settings. Device/browser voices determine quality; if no matching language voice exists, a visible notice explains the chime-only fallback.

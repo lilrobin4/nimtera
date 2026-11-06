@@ -2,9 +2,9 @@
 
 **Updated:** 6 November 2026
 
-**Current application:** https://nimtera.vercel.app
+**Current application:** https://nimtera.store
 
-NimTera is an independent testnet beta. This notice describes the current app; it does not claim an active custom-domain deployment or mainnet payment support.
+NimTera is an independent testnet beta. This notice describes the current app; the custom domain is active, but mainnet payment support remains disabled.
 
 ## Seller accounts
 
