@@ -6,6 +6,8 @@ A Night Market-style storefront, cashier and order-management app for independen
 
 ## What you can do
 
+- Learn the seller/customer flow from the six-language homepage guide and a 20-second silent interface demo with Indonesian captions. The video uses illustrative data, not a real payment.
+
 - Register a seller account and open the dashboard without mandatory 2FA. Optional authenticator setup is available in **Settings → Security**; once enabled, codes are required for sign-in and wallet changes.
 - Manage products, prices, availability and orders from the seller workspace, including the inline cashier menu editor.
 - Choose from **18 example product photos** or upload your own. Upload, replace or remove your shop logo in Settings; branding appears in the seller header and public storefront.
@@ -48,7 +50,7 @@ Use `.env.example` for configuration. Never commit credentials or local data. Th
 
 ## Verification and beta limitations
 
-Latest application validation: **40 unit/security/SQL tests**, TypeScript/build/API smoke, and **10 local browser tests** passed. Real local API tests cover registration without 2FA, later optional activation, durable sessions, products, logos and tenant isolation. Production frontend checks passed with fixture merchant APIs; they are not real production-account or physical payment tests.
+Latest application validation: **40 unit/security/SQL tests**, TypeScript/build/API smoke, and **11 local browser tests** passed. Real local API tests cover registration without 2FA, later optional activation, durable sessions, products, logos and tenant isolation. Production frontend checks passed with fixture merchant APIs; they are not real production-account or physical payment tests.
 
 ```sh
 npm run lint

@@ -119,7 +119,7 @@ export default function App() {
 
   return (
     <>
-      {route.view === 'landing' && <LandingPage navigate={navigate} />}
+      {route.view === 'landing' && <LandingPage navigate={navigate} locale={locale} onChangeLocale={setLocale} />}
       {route.view === 'storefront' && storeLoadError && <main className="min-h-screen bg-[#0B0F14] text-white grid place-items-center p-6"><section className="max-w-lg space-y-5"><h1 className="text-4xl text-[#DFC496]">NimTera</h1><p>Testnet beta · No mainnet payments</p><p>{storeLoadError}</p><button className="bg-teal-500 text-slate-950 rounded-xl p-3" onClick={() => navigate('/seller/setup')}>Create a testnet shop</button><button className="block underline" onClick={() => navigate('/seller/login')}>Seller login</button></section></main>}
       {route.view === 'storefront' && !storeLoadError && !storeLoaded && <main className="min-h-screen bg-[#0B0F14] text-[#DFC496] grid place-items-center">Loading shop…</main>}
       {route.view === 'storefront' && !storeLoadError && storeLoaded && (
