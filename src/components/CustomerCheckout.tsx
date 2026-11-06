@@ -1,3 +1,5 @@
+import {checkoutTransport} from '../lib/checkoutTransport';
+import {CHECKOUT_TRANSPORT_COPY} from '../lib/checkoutTransportCopy';
 import { uiText, uiChoice, categoryCopy } from '../lib/uiLocale';
 import React, { useEffect, useState } from 'react';
 import QRCode from 'qrcode';
@@ -12,7 +14,6 @@ import {
   FlaskConical,
 } from 'lucide-react';
 import {
-  buildNimiqPaymentDetails,
   isActiveNimOrder,
   formatAssetAmount,
   NETWORK_CONFIGS,
@@ -41,13 +42,12 @@ export const CustomerCheckout: React.FC<CustomerCheckoutProps> = ({
   onBackToStore,
 }) => {
   const t = TRANSLATIONS[locale] || TRANSLATIONS.en;
+  const transportText=CHECKOUT_TRANSPORT_COPY[locale];
 
   const [order, setOrder] = useState<OrderSnapshot | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [qrMode, setQrMode] = useState<'checkout_link' | 'wallet_uri'>('checkout_link');
   const [qrDataUrl, setQrDataUrl] = useState<string>('');
-  const [qrUriError, setQrUriError] = useState<string | null>(null);
   const [showFullRecipient, setShowFullRecipient] = useState(false);
   const [copiedField, setCopiedField] = useState<string | null>(null);
   const [txHashInput, setTxHashInput] = useState('');
@@ -87,10 +87,9 @@ export const CustomerCheckout: React.FC<CustomerCheckoutProps> = ({
     return () => { stopped = true; clearTimeout(timer); controller.abort(); };
   }, [publicToken]);
 
-  // Generate crisp static QR code whenever order or qrMode changes, preserving network identity
+  // QR opens the exact invoice in the Mini App; never bypass memo/network guards.
   useEffect(() => {
     if (!order || !isActiveNimOrder(order)) return;
-    setQrUriError(null);
     const origin =
       typeof window !== 'undefined' ? window.location.origin : 'https://nimtera.store';
     const isTestnetOrder =
@@ -99,19 +98,7 @@ export const CustomerCheckout: React.FC<CustomerCheckoutProps> = ({
     const envParam = isTestnetOrder ? 'testnet' : 'mainnet';
     const checkoutUrl = `${origin}/s/${order.storeSlug}/order/${order.publicToken}?net=${order.network}&env=${envParam}`;
 
-    let payload = checkoutUrl;
-    if (qrMode === 'wallet_uri' && order.asset === 'NIM') {
-      if (order.asset === 'NIM') {
-        const nimDetails = buildNimiqPaymentDetails({
-          recipient: order.snapshotRecipient,
-          amountLuna: order.amountBase,
-          orderNumber: order.orderNumber,
-          publicToken: order.publicToken,
-          network: order.network === 'nimiq-testnet' ? 'nimiq-testnet' : 'nimiq-mainnet',
-        });
-        payload = nimDetails.uri;
-      }
-    }
+    const payload=checkoutTransport(checkoutUrl).qrPayload;
 
     QRCode.toDataURL(payload, {
       width: 220,
@@ -124,7 +111,7 @@ export const CustomerCheckout: React.FC<CustomerCheckoutProps> = ({
     })
       .then((url) => setQrDataUrl(url))
       .catch(() => setQrDataUrl(''));
-  }, [order, qrMode]);
+  }, [order]);
 
   const handleCopy = (text: string, label: string) => {
     if (typeof navigator !== 'undefined' && navigator.clipboard) {
@@ -496,7 +483,8 @@ export const CustomerCheckout: React.FC<CustomerCheckoutProps> = ({
                 {qrDataUrl ? (
                   <img
                     src={qrDataUrl}
-                    alt={`Payment QR code for order ${order.orderNumber} on ${order.network}`}
+                    data-testid="checkout-open-qr"
+                    alt={transportText.alt}
                     className="w-36 h-36 block"
                   />
                 ) : (
@@ -506,17 +494,8 @@ export const CustomerCheckout: React.FC<CustomerCheckoutProps> = ({
                 )}
               </div>
 
-              {qrUriError && (
-                <p className="text-[13px] text-amber-700 font-medium text-center max-w-xs">
-                  {qrUriError}
-                </p>
-              )}
-
-              <p className="text-[13px] text-slate-300 text-center max-w-xs leading-snug">
-                {qrMode === 'checkout_link'
-                  ? uiChoice(locale, `${t.qrCheckoutExplanation} (Mempertahankan parameter jaringan ?net=${order.network}&env=${orderEnvironment})`, `${t.qrCheckoutExplanation} (Preserves network parameters ?net=${order.network}&env=${orderEnvironment})`)
-                  : uiChoice(locale, `Direct Wallet URI QR (${order.network}): Mengenkode penerima, nominal presisi, dan jaringan pesanan.`, `Direct Wallet URI QR (${order.network}): Encodes the recipient, exact amount and invoice network.`)}
-              </p>
+              <h3 data-testid="checkout-qr-purpose" className="text-sm font-bold text-[var(--gold-ink)] text-center">{transportText.title}</h3>
+              <p data-testid="checkout-qr-instructions" className="text-sm text-slate-300 text-center max-w-xs leading-snug">{transportText.scan}</p>
             </div>
 
             {/* Explicit Mainnet Real-Funds Consent Checkbox (Required only when order is Mainnet) */}
@@ -538,6 +517,8 @@ export const CustomerCheckout: React.FC<CustomerCheckoutProps> = ({
               </label>
             )}
 
+            <div data-testid="checkout-native-guidance" className="rounded-xl p-3 border border-slate-500 bg-[var(--surface-inset)] text-sm space-y-2 text-slate-300"><p>{transportText.fallback}</p><p>{transportText.inside}</p></div>
+
             {/* Action Buttons */}
             <div className="space-y-2.5 pt-1">
               <button
@@ -553,15 +534,7 @@ export const CustomerCheckout: React.FC<CustomerCheckoutProps> = ({
               </button>
 
               <div className="grid grid-cols-2 gap-2">
-                <button
-                  type="button"
-                  onClick={() =>
-                    setQrMode(qrMode === 'checkout_link' ? 'wallet_uri' : 'checkout_link')
-                  }
-                  className="py-2 px-3 rounded-xl bg-[var(--surface-inset)] border border-slate-500/80 hover:border-slate-600 text-xs font-medium text-slate-300 transition-colors cursor-pointer"
-                >
-                  {qrMode === 'checkout_link' ? 'Show Direct URI QR' : 'Show Checkout Link QR'}
-                </button>
+                {checkoutTransport(checkoutShareUrl).openUrl&&<a data-testid="open-checkout-in-nimiq-pay" href={checkoutTransport(checkoutShareUrl).openUrl!} className="py-2 px-3 rounded-xl bg-[var(--surface-inset)] border border-slate-500/80 text-xs font-semibold text-[var(--gold-ink)] text-center">{transportText.open}</a>}
 
                 <button
                   type="button"

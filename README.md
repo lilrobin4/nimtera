@@ -30,6 +30,8 @@ Photo uploads support JPG, PNG and WebP up to 5 MB / 16 MP, with optimization an
 
 **NIM-only. Mainnet payments are disabled.** The beta supports Nimiq TestAlbatross only. No other payment networks, tokens, swaps, conversion, custody or automatic refunds. Original orders using retired payment methods are preserved as read-only history; they cannot create wallet requests or be reverified as NIM.
 
+**Checkout QR is an invoice-opening QR, not a CPLink.** Scan it with the phone camera, not Nimiq Pay's payment scanner. HTTPS invoices use the official Mini App open-link route. If the app does not open, copy the order URL into Nimiq Pay → Mini Apps → Custom URL, on Testnet, then use the invoice's Pay button. Direct URI QR mode is intentionally removed: wallet URI parsers may discard the required invoice memo, and a URI network parameter is not an enforceable network guard. No fake CPLink IDs or third-party payment records are created.
+
 The app includes the Nimiq Pay Mini App SDK payment path. Native sends require a verified matching Nimiq testnet host and supported browser capabilities. Unknown/mainnet hosts are blocked; unknown transaction outcomes must be checked before retrying.
 
 Wallet sign-in uses the official Mini App SDK's account access and message signing. Opening Nimiq Pay, listing an address or typing a payment recipient is **not** ownership proof. The server verifies the Nimiq signed-message Ed25519 signature and the public-key-derived address against a five-minute, one-use challenge bound to origin, purpose, browser flow and (for account changes) the current authenticated session. Failed proofs consume their nonce too; challenges persist across cloud instances.
@@ -55,7 +57,7 @@ Use `.env.example` for configuration. Never commit credentials or local data. Th
 
 ## Verification and beta limitations
 
-Latest application validation: **46 unit/security/SQL/theme/wallet tests**, TypeScript/build/API smoke, and **16 local browser tests** passed (wallet approval is simulated with real Ed25519 proofs, not a physical device). Real local API tests cover registration without 2FA, later optional activation, durable sessions, products, logos, tenant isolation and preservation of retired-payment SQL history. Day/Night tests check saved preferences, cross-tab synchronization, all six theme labels, text contrast and phone-width layouts. Production frontend checks passed with fixture merchant APIs; they are not real production-account or physical payment tests.
+Latest application validation: **49 unit/security/SQL/theme/wallet/checkout tests**, TypeScript/build/API smoke, and **19 local browser tests** passed (wallet approval is simulated with real Ed25519 proofs, not a physical device). Real local API tests cover registration without 2FA, later optional activation, durable sessions, products, logos, tenant isolation and preservation of retired-payment SQL history. Day/Night tests check saved preferences, cross-tab synchronization, all six theme labels, text contrast and phone-width layouts. Production frontend checks passed with fixture merchant APIs; they are not real production-account or physical payment tests.
 
 ```sh
 npm run lint
