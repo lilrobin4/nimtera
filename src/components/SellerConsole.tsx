@@ -770,7 +770,7 @@ export const SellerConsole: React.FC<SellerConsoleProps> = ({
           <BrandLogo
             variant="champagne"
             size="md"
-            onClick={() => onOpenStorefront('moonlight-cafe')}
+            onClick={() => onOpenStorefront('')}
           />
           <div className="flex items-center gap-3">
             <select
@@ -787,10 +787,10 @@ export const SellerConsole: React.FC<SellerConsoleProps> = ({
             </select>
             <button
               type="button"
-              onClick={() => onOpenStorefront('moonlight-cafe')}
+              onClick={() => onOpenStorefront('')}
               className="px-3.5 py-1.5 rounded-lg bg-[var(--surface-card)] border border-slate-500 text-xs font-medium text-slate-300 hover:text-white cursor-pointer"
             >
-              ← Storefront
+              ← NimTera
             </button>
           </div>
         </header>

@@ -55,3 +55,12 @@ test('new two-decimal invoice displays 40.01 and native SDK sends the exact amou
 test('storefront does not expose hardcoded demo restaurant shortcuts',async({page})=>{
  await mockApi(page);await page.goto('/s/language-fixture');await expect(page.getByText('Language Fixture',{exact:true}).first()).toBeVisible();await expect(page.getByRole('button',{name:'/s/moonlight-cafe',exact:true})).toHaveCount(0);await expect(page.getByRole('button',{name:'/s/aurora-roasters',exact:true})).toHaveCount(0);
 });
+test('storefront logo stays in the current merchant instead of a demo restaurant',async({page})=>{
+ await mockApi(page);await page.goto('/s/language-fixture');await page.getByTestId('brand-logo').click();await expect(page).toHaveURL(/\/s\/language-fixture$/);await expect(page.getByText('Language Fixture',{exact:true}).first()).toBeVisible();
+});
+test('failed invoice returns to its route merchant instead of a demo restaurant',async({page})=>{
+ await mockApi(page);await page.route('**/api/public/orders/fixture-token',route=>route.fulfill({status:404,json:{error:'Order not found'}}));await page.goto('/s/language-fixture/order/fixture-token');await page.getByRole('button',{name:'Return to Storefront',exact:true}).click();await expect(page).toHaveURL(/\/s\/language-fixture$/);
+});
+test('signed-out seller navigation returns to the landing page, not an old shop',async({page})=>{
+ await mockApi(page);await page.goto('/seller/login');await page.getByRole('button',{name:'← NimTera',exact:true}).click();await expect(page).toHaveURL(/\/$/);await page.goto('/seller/login');await page.getByTestId('brand-logo').click();await expect(page).toHaveURL(/\/$/);
+});

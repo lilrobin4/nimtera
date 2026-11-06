@@ -73,7 +73,7 @@ export default function App() {
   const [docsOpen, setDocsOpen] = useState(false);
 
   const [storeInfo, setStoreInfo] = useState<PublicStoreInfo>({
-    slug: 'moonlight-cafe',
+    slug: '',
     name: '',
     activeEnvironment: 'testnet',
     acceptsNim: true,
@@ -145,6 +145,7 @@ export default function App() {
       {route.view === 'checkout' && (
         <CustomerCheckout
           publicToken={route.publicToken}
+          storeSlug={route.storeSlug}
           locale={locale}
           onChangeLocale={setLocale}
           onBackToStore={(slug) => navigate(`/s/${slug}`)}
@@ -157,7 +158,7 @@ export default function App() {
           locale={locale}
           onChangeLocale={setLocale}
           onNavigateTab={(tab) => navigate(`/seller/${tab}`)}
-          onOpenStorefront={(slug) => navigate(`/s/${slug}`)}
+          onOpenStorefront={(slug) => navigate(slug ? `/s/${encodeURIComponent(slug)}` : '/')}
           onOpenOrderCheckout={(slug, token) => navigate(`/s/${slug}/order/${token}`)}
           onOpenDocsModal={() => setDocsOpen(true)}
         />

@@ -18,6 +18,14 @@ A NIM-only storefront, cashier and order-management app for independent sellers.
 
 Photo uploads support JPG, PNG and WebP up to 5 MB / 16 MP, with optimization and metadata removal. The current library limit is 100 distinct uploads per shop, including logos. Uploaded images use durable database storage in the cloud; they are public assets, not private documents. [Example-photo credits](public/products/CREDITS.md).
 
+## Interface preview
+
+Actual application screens with **illustrative Testnet data**, not real payment evidence.
+
+| Customer catalog | Seller cashier |
+| --- | --- |
+| ![NimTera customer catalog — illustrative Testnet data](public/media/nimtera-catalog-preview.jpg) | ![NimTera seller cashier — illustrative Testnet data](public/media/nimtera-cashier-preview.jpg) |
+
 ## Try the seller flow
 
 1. Open [seller registration](https://nimtera.store/seller/setup). Choose email/password (15+ characters) or Nimiq Pay. The wallet path requires native wallet approval and a signed, expiring ownership proof before completing email, shop details and a separate NIM Testnet recipient. A password is optional for wallet-first registration; set one before email/PC login.
@@ -61,11 +69,15 @@ npm run build
 npm run dev
 ```
 
+GitHub Actions runs `npm ci`, `npm test` and `npm run build` on pushes to `main` and pull requests, without production secrets or production accounts.
+
 Use `.env.example` for configuration. Never commit credentials or local data. The standalone server uses private local storage for one process; Vercel uses transactional PostgreSQL and does not fall back to temporary files for cloud accounts or uploads. Hosted operation requires a dedicated `DATABASE_URL`, `SESSION_SECRET` and correct `APP_URL`. `npm run build:ui` is a separate sample-only build, not the working application.
 
 ## Verification and beta limitations
 
-Latest application validation: **53 unit/security/SQL/theme/wallet/checkout tests**, TypeScript/build/API smoke, and **21 local browser tests** passed (wallet approval is simulated with real Ed25519 proofs, not a physical device). Real local API tests cover registration without 2FA, later optional activation, durable sessions, products, logos, tenant isolation and preservation of retired-payment SQL history. Day/Night tests check saved preferences, cross-tab synchronization, all six theme labels, text contrast and phone-width layouts. Production frontend checks passed with fixture merchant APIs; they are not real production-account or physical payment tests.
+Validation recorded on **6 November 2026**: **61 backend/unit tests**, TypeScript/build and compiled API smoke passed; the latest complete isolated browser run passed **29 tests**, including current-shop navigation, failed-invoice return and removal of old restaurant shortcuts. The production frontend suite passed **26 fixture-based tests**, with three account-writing tests intentionally skipped. These figures describe recorded runs, not a permanent guarantee or a security audit. Wallet approvals are simulated using real Ed25519 proofs, not a physical device.
+
+Real local API tests cover registration without mandatory 2FA, optional activation, durable sessions, products, logos, tenant isolation, two-decimal unique payment detection and preservation of old invoices. Browser checks cover Day/Night preferences, six languages, phone-width layouts, exact payment amounts and cashier audio. Production checks use fixture merchant APIs; they are not real production-account or physical payment tests.
 
 ```sh
 npm run lint
@@ -78,5 +90,9 @@ PLAYWRIGHT_BASE_URL= PLAYWRIGHT_AUTH_E2E=1 npm run test:browser
 The isolated browser fixture creates no production accounts. Do not run real-account fixture tests against production. TTS tests simulate voices and cannot certify how a phone sounds.
 
 This is a bounded testnet beta, not an audited high-volume production service. Account recovery, real-device payment validation and load/security review remain outstanding. Audio tab coordination is limited to the same browser profile. On Vercel, pending payments are reconciled when checkout/dashboard requests occur; there is no unattended permanent worker. Wallet changes affect future invoices only.
+
+## License
+
+Original project code is available under the [MIT License](LICENSE). Third-party dependencies and third-party images retain their own licenses; see [photo credits](public/products/CREDITS.md). The MIT license does not grant rights to third-party trademarks or photographs.
 
 [Security](SECURITY.md) · [Privacy](PRIVACY.md)

@@ -18,7 +18,9 @@ NimTera is an independent **testnet beta**, not an audited production payment se
 - Browser-supplied hashes are untrusted hints. The server checks matching testnet chain evidence before confirming a payment and guards against reusing a verified transaction for another order.
 - NIM Testnet is the only active payment route. Retired payment fields are rejected; stored legacy receipts remain read-only and are never relabeled as NIM.
 - An RPC timeout or unknown wallet outcome is not evidence of failure. Check the order and wallet history before sending again.
-- Wallet binding and wallet-signature seller login are not available yet. A wallet address alone is not proof of ownership.
+- Seller wallet sign-in and explicit account linking use signed, five-minute, one-use challenges bound to the browser, origin and purpose. The server verifies the signature and derived address; a typed address alone is not ownership proof. Existing accounts are never merged automatically. Enabled 2FA remains enforced.
+- New invoices use a disclosed unique two-decimal total for automatic matching. The verifier checks the exact reserved amount, recipient, Testnet network, successful inclusion and invoice time window, rejects ambiguous matches and prevents transaction reuse. Existing invoice amounts remain unchanged.
+- Monitoring runs when the seller dashboard or customer invoice requests an update. There is no always-on background worker or browser-closed push notification. Keep the cashier page open and audio enabled for live announcements.
 
 ## Uploads and privacy
 

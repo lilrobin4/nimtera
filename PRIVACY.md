@@ -10,6 +10,8 @@ NimTera is an independent testnet beta. This notice describes the current app; t
 
 The service stores the seller email, password hash, shop profile, configured receiving addresses, products, orders and account-security state. Authenticator 2FA is optional and can be enabled in Settings → Security; its setup secret must be kept private. Passwords, wallet seed phrases and private keys should never be shared with other users or posted in the repository. NimTera does not ask for wallet seed phrases or private keys.
 
+If you use wallet sign-in, the service also stores your linked public wallet address and public key, not private keys. Short-lived challenges and an essential browser-binding cookie are used to verify wallet approval. Linking a wallet does not merge separate accounts or replace the receiving address automatically.
+
 Seller login uses an essential HttpOnly session cookie valid for up to eight hours. Device storage retains interface language, Day/Night appearance, audio preferences and limited audio-deduplication/tab-coordination information. Payment-attempt journals help prevent an uncertain native send from being repeated blindly; do not clear them to retry before checking wallet history.
 
 ## Customers and orders

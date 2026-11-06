@@ -25,3 +25,11 @@ test('public help cannot include deployment runbooks or misleading mainnet claim
   }
   assert.match(PUBLIC_HELP.en.content.overview.points.join(' '), /testnet only/);
 });
+test('submission metadata and documentation preserve truthful wallet support and remove hardcoded demo navigation',()=>{
+ const root=new URL('../',import.meta.url);
+ for(const file of ['src/App.tsx','src/components/CustomerStorefront.tsx','src/components/CustomerCheckout.tsx','src/components/SellerConsole.tsx'])assert.doesNotMatch(readFileSync(new URL(file,root),'utf8'),/moonlight-cafe|aurora-roasters/);
+ assert.match(readFileSync(new URL('LICENSE',root),'utf8'),/MIT License/);
+ assert.match(readFileSync(new URL('.github/workflows/ci.yml',root),'utf8'),/npm test/);
+ assert.doesNotMatch(readFileSync(new URL('SECURITY.md',root),'utf8'),/wallet-signature seller login are not available yet/);
+ assert.match(readFileSync(new URL('PRIVACY.md',root),'utf8'),/public key/);
+});

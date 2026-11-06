@@ -31,6 +31,7 @@ import { OrderStatusBadge } from './OrderStatusBadge';
 
 interface CustomerCheckoutProps {
   publicToken: string;
+  storeSlug: string;
   locale: SupportedLocale;
   onChangeLocale: (locale: SupportedLocale) => void;
   onBackToStore: (storeSlug: string) => void;
@@ -38,6 +39,7 @@ interface CustomerCheckoutProps {
 
 export const CustomerCheckout: React.FC<CustomerCheckoutProps> = ({
   publicToken,
+  storeSlug,
   locale,
   onChangeLocale,
   onBackToStore,
@@ -210,7 +212,7 @@ export const CustomerCheckout: React.FC<CustomerCheckoutProps> = ({
         <h1 className="text-xl font-semibold">{error || 'Order not found'}</h1>
         <button
           type="button"
-          onClick={() => onBackToStore('moonlight-cafe')}
+          onClick={() => onBackToStore(order?.storeSlug || storeSlug)}
           className="px-5 py-2.5 rounded-xl bg-[#14B8A6] text-[#071318] font-semibold text-sm cursor-pointer"
         >
           Return to Storefront

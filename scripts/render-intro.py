@@ -15,7 +15,7 @@ scenes = [
     ('3', 4, '02 / Set up your catalog', 'Add products, prices and photos. Upload your shop logo in Settings.'),
     ('4', 2, '03 / Choose your menu', 'Open the shop link, or choose items on the shop/restaurant cashier screen.'),
     ('4b', 2, '03 / Choose your menu', 'Open the shop link, or choose items on the shop/restaurant cashier screen.'),
-    ('5', 4, '04 / Check your payment', 'Pay in NIM on Nimiq Testnet. Wait for the verified order status.'),
+    ('5', 4, '04 / Check your payment', 'Scan on Testnet. Pay the exact total: 40.01 NIM. No hash entry.'),
 ]
 font = '/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf'
 bold = '/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf'

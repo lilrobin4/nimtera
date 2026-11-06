@@ -186,7 +186,7 @@ export const CustomerStorefront: React.FC<CustomerStorefrontProps> = ({
           <BrandLogo
             variant="champagne"
             size="md"
-            onClick={() => onSwitchStore('moonlight-cafe')}
+            onClick={() => onSwitchStore(store.slug)}
           />
 
           {/* Zone 2: Concise single-line navigation links */}
