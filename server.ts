@@ -340,8 +340,7 @@ export async function createApp(options: { apiOnly?: boolean } = {}) {
   app.get('/api/auth/security-status', (_req, res) => {
     res.json({ passwordMinLength: 15, totp2faRequired: true, rateLimitActive: true,
       captchaRequired: false,
-      domainCanonical: process.env.APP_URL || 'https://nimtera.store', testnetOnly: true,
-      emailVerificationConfigured: false });
+      testnetOnly: true });
   });
 
   // 2. Seller Login with 15+ char password policy, progressive backoff, 2FA TOTP, and Restaurant Name input

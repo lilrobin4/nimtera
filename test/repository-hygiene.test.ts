@@ -14,3 +14,14 @@ test('AI Studio exports and unused Gemini dependency stay out of the application
     assert.ok(existsSync(new URL(`public/products/${match[1]}`, root)), `Missing runtime photo: ${match[1]}`);
   }
 });
+
+test('public help cannot include deployment runbooks or misleading mainnet claims', async () => {
+  const { PUBLIC_HELP } = await import('../src/lib/publicDocs');
+  assert.equal(Object.keys(PUBLIC_HELP).length,6);
+  for (const help of Object.values(PUBLIC_HELP)) {
+    assert.deepEqual(Object.keys(help.tabs),['overview','security','privacy']);
+    assert.doesNotMatch(JSON.stringify(help), /StakeSafe|DNS|APP_URL|SESSION_SECRET|DATABASE_URL|Hosting Load Balancer|scrypt|RFC 6238|Supported Mainnet Assets|demoTotp/i);
+    for (const section of Object.values(help.content)) assert.equal(section.points.length,3);
+  }
+  assert.match(PUBLIC_HELP.en.content.overview.points.join(' '), /testnet only/);
+});

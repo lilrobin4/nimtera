@@ -880,7 +880,7 @@ export const CustomerStorefront: React.FC<CustomerStorefrontProps> = ({
                   data-testid="amoy-contract-notice"
                   className="p-2.5 rounded-xl bg-amber-100 border border-amber-400 text-amber-950 text-[11px] leading-relaxed"
                 >
-                  <strong>{' '}{uiText(locale, "Catatan Kontrak TEST TOKEN Amoy (Chain 80002):")}{' '}</strong>{' '}{uiText(locale, "Kontrak ERC-20 uji belum dikonfigurasi di Pengaturan Seller. Kontrak USDT Mainnet (")}{' '}<code className="font-mono">0xc213...8e8F</code>{' '}{uiText(locale, ") dilarang dipakai di Amoy. Mintalah persetujuan terlebih dahulu sebelum melakukan deployment kontrak token uji.")}{' '}</div>
+                  <strong>{' '}{uiText(locale, "Catatan Kontrak TEST TOKEN Amoy (Chain 80002):")}{' '}</strong>{' '}{uiText(locale, "Kontrak ERC-20 uji belum dikonfigurasi di Pengaturan Seller. Kontrak USDT Mainnet (")}{' '}<code className="font-mono">0xc213...8e8F</code>{' '}{uiText(locale, ") tidak dapat digunakan di Amoy. Pembayaran token belum tersedia; pilih NIM Testnet atau hubungi penjual.")}{' '}</div>
               )}
             </div>
 

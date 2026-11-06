@@ -94,7 +94,7 @@ test('HTTP regression: no CAPTCHA dependency, private MFA, malformed bodies, no 
     assert.equal(registered.status, 201); assert.ok(registered.body.enrollment.uri.startsWith('otpauth://'));
     const session = registered.body.token;
     assert.equal((await req('/api/seller/dashboard', undefined, session)).status, 403);
-    const security = await req('/api/auth/security-status'); assert.equal(security.body.demoTotpCurrentCode, undefined); assert.equal(security.body.captchaRequired, false); assert.equal(security.body.turnstileSiteKey, undefined);
+    const security = await req('/api/auth/security-status'); assert.equal(security.body.demoTotpCurrentCode, undefined); assert.equal(security.body.captchaRequired, false); assert.equal(security.body.turnstileSiteKey, undefined); assert.equal(security.body.domainCanonical, undefined); assert.equal(security.body.emailVerificationConfigured, undefined);
     assert.equal((await req('/api/auth/mfa/enrollment')).status, 401);
     const data = JSON.parse(fs.readFileSync(process.env.NIMTERA_DATA_FILE!, 'utf8'));
     assert.equal((await req('/api/auth/mfa/confirm', { totpCode: generateTotpCode(data.sellers[0].totpSecretHex) }, session)).status, 200);

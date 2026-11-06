@@ -1143,7 +1143,7 @@ export const SellerConsole: React.FC<SellerConsoleProps> = ({
               onClick={onOpenDocsModal}
               className="lg:hidden text-xs text-slate-400 hover:text-white"
             >
-              Docs
+              {t.navPolicies}
             </button>
           </div>
 
@@ -2560,7 +2560,7 @@ export const SellerConsole: React.FC<SellerConsoleProps> = ({
                         className="w-full bg-white border border-amber-400 rounded-xl px-3.5 py-2 text-xs font-mono text-stone-900"
                       />
                       <p className="text-[11px] text-amber-900 mt-1 leading-relaxed">
-                        <strong>{' '}{uiText(locale, "Larangan Keamanan:")}{' '}</strong>{' '}{uiText(locale, "Alamat kontrak USDT Mainnet (")}{' '}<code>{POLYGON_USDT_CONTRACT}</code>{' '}{uiText(locale, ") otomatis ditolak di Amoy. Jika kontrak token uji belum tersedia, jelaskan dan minta persetujuan sebelum deployment kontrak baru.")}{' '}</p>
+                        <strong>{' '}{uiText(locale, "Larangan Keamanan:")}{' '}</strong>{' '}{uiText(locale, "Alamat kontrak USDT Mainnet (")}{' '}<code>{POLYGON_USDT_CONTRACT}</code>{' '}{uiText(locale, ") tidak dapat digunakan di Amoy. Simpan kontrak token uji Amoy yang valid sebelum mengaktifkan pembayaran token.")}{' '}</p>
                     </div>
                   </div>
 

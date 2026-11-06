@@ -498,7 +498,7 @@ export const CustomerCheckout: React.FC<CustomerCheckoutProps> = ({
               >
                 <strong>{' '}{uiText(locale, "Pengaman Kontrak Polygon Amoy (Chain ID 80002):")}{' '}</strong>{' '}{uiText(locale, "Kontrak")}{' '}{' '}
                 <code>TEST TOKEN</code>{' '}{uiText(locale, "belum dikonfigurasi pada toko ini. Sesuai aturan keamanan, NimTera")}{' '}<strong>{' '}{uiText(locale, "menolak penggunaan alamat kontrak USDT Mainnet")}{' '}</strong> (
-                <code>0xc2132D05D31c914a87C6611C10748AEb04B58e8F</code>{' '}{uiText(locale, ") di Amoy. Mintalah persetujuan sebelum melakukan deployment kontrak token uji baru, atau gunakan fitur verifikasi hash transaksi nyata pada jaringan testnet yang sesuai.")}{' '}</div>
+                <code>0xc2132D05D31c914a87C6611C10748AEb04B58e8F</code>{' '}{uiText(locale, ") tidak dapat digunakan di Amoy. Hubungi penjual untuk pesanan baru dengan aset testnet yang tersedia. Jangan mengirim dana pada jaringan lain.")}{' '}</div>
             )}
           </div>
 

@@ -90,3 +90,21 @@ test('night theme stays usable at phone width', async ({ page }) => {
     expect(await page.evaluate(() => document.documentElement.scrollWidth), route).toBeLessThanOrEqual(390);
   }
 });
+
+test('public help contains user guidance only in all six languages', async ({ page }) => {
+  await mockApi(page); await page.goto('/s/language-fixture');
+  const { PUBLIC_HELP } = await import('../../src/lib/publicDocs');
+  for (const locale of ['en','id','zh-CN','vi','ms','ru'] as const) {
+    const copy=PUBLIC_HELP[locale];
+    await page.locator('#storefront-lang-select').selectOption(locale);
+    const opener=page.getByRole('button',{name:copy.title,exact:true}); await opener.click();
+    const dialog=page.getByRole('dialog'); await expect(dialog).toBeVisible();
+    await expect(dialog.getByRole('heading',{name:copy.title,exact:true})).toBeVisible();
+    for (const tab of ['overview','security','privacy'] as const) {
+      await dialog.getByRole('button',{name:copy.tabs[tab],exact:true}).click();
+      await expect(dialog.getByRole('heading',{name:copy.content[tab].heading,exact:true})).toBeVisible();
+      await expect(dialog).not.toContainText(/StakeSafe|DNS|Deploy|APP_URL|Hosting Load Balancer|RFC 6238|scrypt|3-Device|Mainnet Assets/);
+    }
+    await page.keyboard.press('Escape'); await expect(dialog).toHaveCount(0); await expect(opener).toBeFocused();
+  }
+});

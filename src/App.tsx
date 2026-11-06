@@ -158,7 +158,7 @@ export default function App() {
         />
       )}
 
-      <DocsAndPoliciesModal open={docsOpen} onClose={() => setDocsOpen(false)} />
+      <DocsAndPoliciesModal locale={locale} open={docsOpen} onClose={() => setDocsOpen(false)} />
     </>
   );
 }
