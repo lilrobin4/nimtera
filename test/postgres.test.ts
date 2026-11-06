@@ -79,7 +79,7 @@ test('original application: registration, MFA, products and orders survive disti
   const { createValidNimiqAddress } = await import('../src/lib/domain');
   const { createServer } = await import('node:http');
   const f = await fixture();
-  const appA = await createApp({ apiOnly: true }); let appB = await createApp({ apiOnly: true });
+  const appA = await createApp({ apiOnly: true, automaticPaymentRpc:async()=>[] }); let appB = await createApp({ apiOnly: true, automaticPaymentRpc:async()=>[] });
   let alternate = false;
   const http = createServer((req,res) => { alternate = !alternate; void serveDurableRequest(req,res,alternate ? appA : appB,f.pool); });
   http.listen(0,'127.0.0.1'); await once(http,'listening'); const base = `http://127.0.0.1:${(http.address() as any).port}`;
@@ -108,7 +108,7 @@ test('original application: registration, MFA, products and orders survive disti
     assert.equal(created.status,201);
     assert.equal((await req(`/api/public/orders/${created.body.order.publicToken}`)).body.order.paymentStatus,'unpaid');
     // Simulate another cold application instance; durable state, not module fallbacks, supplies the account.
-    appB = await createApp({apiOnly:true}); alternate = true;
+    appB = await createApp({apiOnly:true,automaticPaymentRpc:async()=>[]}); alternate = true;
     assert.equal((await req('/api/seller/dashboard',undefined,token)).status,200);
     for (let i=0;i<3;i++) {
       const response=await fetch(base+'/api/auth/session',{headers:{Cookie:cookie}});
@@ -177,7 +177,7 @@ test('durable session restoration prunes expired sessions without dropping valid
 test('NIM-only upgrade preserves legacy SQL history and wallets while retiring every write/payment route', async () => {
   process.env.NODE_ENV='test';process.env.SESSION_SECRET='fixture-cloud-secret-'.repeat(5);
   const {createApp}=await import('../server');const {createValidNimiqAddress}=await import('../src/lib/domain');const {createServer}=await import('node:http');
-  const f=await fixture(),app=await createApp({apiOnly:true});
+  const f=await fixture(),app=await createApp({apiOnly:true,automaticPaymentRpc:async()=>[]});
   const http=createServer((req,res)=>{void serveDurableRequest(req,res,app,f.pool);});http.listen(0,'127.0.0.1');await once(http,'listening');
   const base=`http://127.0.0.1:${(http.address() as any).port}`;
   const nativeFetch=globalThis.fetch;let rpcCalls=0;
@@ -200,6 +200,6 @@ test('NIM-only upgrade preserves legacy SQL history and wallets while retiring e
     const state=(await f.state()).database;assert.deepEqual(state.orders,original.orders);assert.equal(state.products[0].priceUsdtMicro,'2000000');assert.equal(state.stores[0].polygonAddress,'original-mainnet-wallet');assert.equal(state.stores[0].polygonAmoyAddress,legacy.snapshotRecipient);assert.equal(state.stores[0].polygonAmoyTestTokenContract,legacy.snapshotTokenContract);assert.equal(rpcCalls,0);
     const cart={items:[{productId:'old-product',quantity:1}],asset:'USDT',environment:'testnet'};
     assert.equal((await req('/api/public/stores/archive-shop/orders',cart)).status,400);
-    const nim=await req('/api/public/stores/archive-shop/orders',{...cart,asset:'NIM'});assert.equal(nim.status,201);assert.equal(nim.body.order.amountFormatted,'2 NIM (TESTNET)');assert.equal(nim.body.order.network,'nimiq-testnet');assert.equal(nim.body.order.snapshotTokenContract,null);
+    const nim=await req('/api/public/stores/archive-shop/orders',{...cart,asset:'NIM'});assert.equal(nim.status,201);assert.equal(nim.body.order.amountFormatted,'2.00001 NIM (TESTNET)');assert.equal(nim.body.order.network,'nimiq-testnet');assert.equal(nim.body.order.snapshotTokenContract,null);
   }finally{globalThis.fetch=nativeFetch;await new Promise<void>(resolve=>http.close(()=>resolve()));await f.db.close();}
 });

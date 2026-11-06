@@ -228,7 +228,12 @@ export interface OrderSnapshot {
   paymentStatus: PaymentStatus;
   paymentReviewReason?: string;
   manualPaymentNote?: string;
-  paymentBinding?: 'invoice-memo' | 'seller-reviewed-address';
+  paymentBinding?: 'invoice-memo' | 'seller-reviewed-address' | 'unique-amount';
+  matchingMode?: 'unique-amount-v1';
+  subtotalBase?: string;
+  paymentCodeLuna?: string;
+  autoMatchCheckedAt?: string;
+  autoMatchState?: 'watching' | 'unavailable' | 'limited' | 'needs_review' | 'confirmed';
   txHash?: string;
   paymentVerificationAttemptedAt?: string;
   payerAddress?: string;

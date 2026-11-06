@@ -15,7 +15,7 @@ const db=new PGlite(); await db.exec(schemaSql);
 await db.query("INSERT INTO nimtera_testnet_state(id,state) VALUES('testnet',$1::jsonb)",[JSON.stringify(emptyEnvelope(emptyDatabase()))]);
 let tail:Promise<void>=Promise.resolve();
 const pool:SqlPool={connect:async()=>{const prior=tail;let unlock!:()=>void;tail=new Promise<void>(r=>{unlock=r;});await prior;return {query:(sql,params)=>db.query(sql,params),release:()=>unlock()};}};
-const apps=[await createApp({apiOnly:true}),await createApp({apiOnly:true})];let index=0;
+const apps=[await createApp({apiOnly:true,automaticPaymentRpc:async()=>[]}),await createApp({apiOnly:true,automaticPaymentRpc:async()=>[]})];let index=0;
 const app=express();app.use('/api',(req,res)=>{
 // Keep fixture suites on independent simulated client IPs without weakening production limits.
 if(req.headers['x-nimtera-fixture-client']==='wallet-auth-tests')Object.defineProperty(req,'ip',{value:'fixture-wallet-client',configurable:true});

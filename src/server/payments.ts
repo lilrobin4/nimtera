@@ -2,9 +2,11 @@ import { buildNimiqPaymentDetails, isActiveNimOrder, NETWORK_CONFIGS, type Order
 
 export type RpcCall = (url: string, method: string, params: unknown[]) => Promise<any>;
 class RpcUnavailable extends Error {}
-export const rpcCall: RpcCall = async (url, method, params) => {
+export const rpcCall: RpcCall = (url,method,params)=>performRpc(url,method,params,8000);
+export const rpcWatchCall:RpcCall = (url,method,params)=>performRpc(url,method,params,2500);
+async function performRpc(url:string,method:string,params:unknown[],timeout:number) {
   try {
-    const response = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ jsonrpc: '2.0', id: 1, method, params }), signal: AbortSignal.timeout(8000) });
+    const response = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ jsonrpc: '2.0', id: 1, method, params }), signal: AbortSignal.timeout(timeout) });
     if (!response.ok) throw new RpcUnavailable('RPC HTTP error');
     const body = await response.json();
     if (body?.error && method === 'getTransactionByHash' && /transaction.*not found/i.test(String(body.error.message))) return null;
@@ -14,9 +16,7 @@ export const rpcCall: RpcCall = async (url, method, params) => {
     if (error instanceof Error && ['AbortError', 'TimeoutError'].includes(error.name)) throw error;
     throw new RpcUnavailable('RPC unavailable; retry later');
   }
-};
-
-
+}
 
 function normalizeAddress(v: unknown): string { return typeof v === 'string' ? v.replace(/\s/g, '').toLowerCase() : ''; }
 function timeMs(value: unknown): number {

@@ -65,7 +65,7 @@ test('HTTP regression: no CAPTCHA dependency, private MFA, malformed bodies, no 
   process.env.NODE_ENV = 'test'; process.env.NIMTERA_DATA_FILE = path.join(dir, 'store.json'); process.env.SESSION_SECRET = 'fixture-only-'.repeat(8);
   delete process.env.TURNSTILE_SECRET_KEY; delete process.env.VITE_TURNSTILE_SITE_KEY; delete process.env.TURNSTILE_ALLOWED_HOSTNAMES;
   const { createApp, generateTotpCode } = await import('../server');
-  const app = await createApp(); const server = app.listen(0, '127.0.0.1'); await once(server, 'listening');
+  const app = await createApp({automaticPaymentRpc:async()=>[]}); const server = app.listen(0, '127.0.0.1'); await once(server, 'listening');
   const address = server.address() as { port: number }; const base = `http://127.0.0.1:${address.port}`;
   const original = globalThis.fetch;
   globalThis.fetch = async (url, options) => {

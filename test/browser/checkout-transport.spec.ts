@@ -38,3 +38,13 @@ test('expired invoices hide the receiving QR and disable new native payment requ
  const data=await page.evaluate(async()=>await (await fetch('/api/public/orders/fixture-token')).json());data.order.expiresAt=new Date(Date.now()-1000).toISOString();
  await page.route('**/api/public/orders/**',route=>route.fulfill({json:data}));await page.reload();await expect(page.getByTestId('address-qr-inactive')).toBeVisible();await expect(page.getByTestId('checkout-address-qr')).toHaveCount(0);await expect(page.getByTestId('pay-in-wallet-btn')).toBeDisabled();
 });
+
+test('unique invoice shows transparent subtotal/code, exact five decimals and six-language automatic monitoring',async({page})=>{
+ const {AUTO_PAYMENT_COPY}=await import('../../src/lib/automaticPaymentCopy');
+ await mockApi(page,{order:{matchingMode:'unique-amount-v1',amountBase:'8000001',amountFormatted:'80.00001',subtotalBase:'8000000',paymentCodeLuna:'1',autoMatchState:'watching',autoMatchCheckedAt:new Date().toISOString()}});await page.setViewportSize({width:390,height:844});await page.goto('/s/language-fixture/order/fixture-token');
+ await expect(page.getByTestId('checkout-total-amount')).toHaveText('80.00001');await expect(page.locator('#tx-hash-verify-input')).toHaveCount(0);await expect(page.getByTestId('unique-payment-breakdown')).toContainText('80 NIM (TESTNET)');await expect(page.getByTestId('unique-payment-breakdown')).toContainText('+0.00001 NIM (TESTNET)');await expect(page.getByTestId('checkout-native-guidance')).toHaveCount(0);
+ for(const [locale,copy]of Object.entries(AUTO_PAYMENT_COPY)){await page.getByRole('combobox',{name:'Checkout Language',exact:true}).selectOption(locale);await expect(page.getByTestId('automatic-payment-monitor')).toContainText(copy.guide);await expect(page.getByTestId('automatic-payment-monitor')).toContainText(copy.watching);await expect(page.getByTestId('unique-payment-breakdown')).toContainText(copy.disclosure);expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);}
+});
+test('automatic invoice makes a network outage visible without marking payment confirmed',async({page})=>{
+ const {AUTO_PAYMENT_COPY}=await import('../../src/lib/automaticPaymentCopy');await mockApi(page,{order:{matchingMode:'unique-amount-v1',amountBase:'100001',subtotalBase:'100000',paymentCodeLuna:'1',autoMatchState:'unavailable',autoMatchCheckedAt:new Date().toISOString()}});await page.goto('/s/language-fixture/order/fixture-token');await page.getByRole('combobox',{name:'Checkout Language',exact:true}).selectOption('id');await expect(page.getByTestId('automatic-payment-monitor')).toContainText(AUTO_PAYMENT_COPY.id.unavailable);
+});

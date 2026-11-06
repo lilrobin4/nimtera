@@ -1,7 +1,8 @@
+import {allocateUniqueAmount,discoverAutomaticPayments,type AutomaticPaymentDatabase} from './src/server/automaticPayments.js';
 import { fingerprint, normalizedWallet, newWalletChallenge, verifyWalletProof, type WalletChallenge } from './src/server/walletAuth.js';
 import { normalizeProductImage, saveProductImage, readProductImage, validProductImageUrl } from './src/server/productImages.js';
 import { requestState, scopedDatabase, scopedMap } from './src/server/requestState.js';
-import { readAddressPaymentEvidence, readPaymentEvidence } from './src/server/payments.js';
+import { readAddressPaymentEvidence, readPaymentEvidence, type RpcCall } from './src/server/payments.js';
 import 'dotenv/config';
 import express, { type Request, type Response, type NextFunction } from 'express';
 import crypto from 'node:crypto';
@@ -99,6 +100,7 @@ interface SessionRecord {
 }
 
 interface DatabaseState {
+  paymentScanState?: AutomaticPaymentDatabase['paymentScanState'];
   sellers: SellerAccount[];
   stores: StoreRecord[];
   products: ProductRecord[];
@@ -298,7 +300,7 @@ export async function reconcilePendingPayments() {
   }
 }
 
-export async function createApp(options: { apiOnly?: boolean } = {}) {
+export async function createApp(options: { apiOnly?: boolean; automaticPaymentRpc?:RpcCall } = {}) {
   const app = express();
   app.disable('x-powered-by');
   if (process.env.VERCEL) app.set('trust proxy', 1);
@@ -865,6 +867,8 @@ export async function createApp(options: { apiOnly?: boolean } = {}) {
       cleanDelivery = { recipientName: rName, phone: rPhone, address: rAddr };
     }
 
+    let uniquePayment:ReturnType<typeof allocateUniqueAmount>;
+    try{uniquePayment=allocateUniqueAmount(calc.totalBase,snapshotRecipient,calc.network,db.orders);}catch{res.status(503).json({error:'Unique payment-code capacity is full for this recipient. No invoice was created and no amount was reused.'});return;}
     const nextSeq = (db.orderSequenceByStore[slug] || 0) + 1;
     db.orderSequenceByStore[slug] = nextSeq;
     const prefix = orderEnv === 'testnet' ? '#T' : '#';
@@ -888,8 +892,8 @@ export async function createApp(options: { apiOnly?: boolean } = {}) {
       snapshotChainId,
       snapshotTokenContract,
       snapshotRecipient,
-      amountBase: calc.totalBase.toString(),
-      amountFormatted: calc.totalFormatted,
+      ...uniquePayment,
+      amountFormatted: formatAssetAmount(uniquePayment.amountBase,asset,orderEnv),
       items: calc.items,
       fulfillmentMode: mode,
       tableOrNote: (tableOrNote || '').trim().slice(0, 120),
@@ -918,6 +922,7 @@ export async function createApp(options: { apiOnly?: boolean } = {}) {
       return;
     }
     if (isActiveNimOrder(order) && order.paymentStatus === 'pending' && order.txHash && Date.now() - Date.parse(order.paymentVerificationAttemptedAt || '1970-01-01') >= 15000) await verifyOrderPayment(order, order.txHash);
+    if(order.matchingMode==='unique-amount-v1') {await discoverAutomaticPayments(db,rpcUrls,order.storeSlug,options.automaticPaymentRpc);saveDatabase(db);}
     res.json({ order: sanitizeOrderForPublic(order) });
   }));
 
@@ -973,6 +978,7 @@ export async function createApp(options: { apiOnly?: boolean } = {}) {
     }
     const pendingCheck = db.orders.find(o => isActiveNimOrder(o) && o.storeSlug === storeSlug && o.paymentStatus === 'pending' && o.txHash && Date.now() - Date.parse(o.paymentVerificationAttemptedAt || '1970-01-01') >= 15000);
     if (pendingCheck?.txHash) await verifyOrderPayment(pendingCheck, pendingCheck.txHash);
+    await discoverAutomaticPayments(db,rpcUrls,storeSlug,options.automaticPaymentRpc);saveDatabase(db);
     const products = db.products.filter((p) => p.storeSlug === storeSlug);
     const orders = db.orders.filter((o) => o.storeSlug === storeSlug);
     const auditLogs = db.auditLogs.filter((a) => a.storeSlug === storeSlug);

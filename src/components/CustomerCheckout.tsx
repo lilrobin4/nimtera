@@ -1,3 +1,4 @@
+import {AUTO_PAYMENT_COPY} from '../lib/automaticPaymentCopy';
 import {addressQrAvailable,addressPaymentQr,checkoutTransport} from '../lib/checkoutTransport';
 import {CHECKOUT_TRANSPORT_COPY} from '../lib/checkoutTransportCopy';
 import { uiText, uiChoice, categoryCopy } from '../lib/uiLocale';
@@ -43,6 +44,7 @@ export const CustomerCheckout: React.FC<CustomerCheckoutProps> = ({
 }) => {
   const t = TRANSLATIONS[locale] || TRANSLATIONS.en;
   const transportText=CHECKOUT_TRANSPORT_COPY[locale];
+  const autoText=AUTO_PAYMENT_COPY[locale];
 
   const [order, setOrder] = useState<OrderSnapshot | null>(null);
   const [loading, setLoading] = useState(true);
@@ -387,6 +389,8 @@ export const CustomerCheckout: React.FC<CustomerCheckoutProps> = ({
             )}
           </div>
 
+          {order.matchingMode==='unique-amount-v1'&&<section data-testid="unique-payment-breakdown" className="rounded-xl p-3 bg-[var(--surface-inset)] border border-slate-500 text-sm space-y-2"><div className="flex justify-between gap-3"><span>{autoText.subtotal}</span><strong>{formatAssetAmount(order.subtotalBase!,'NIM',orderEnvironment)}</strong></div><div className="flex justify-between gap-3"><span>{autoText.code}</span><strong>+{formatAssetAmount(order.paymentCodeLuna!,'NIM',orderEnvironment)}</strong></div><p className="text-xs text-slate-300">{autoText.disclosure}</p></section>}
+
           {/* Total & Strictly Locked Network Specification */}
           <div className="space-y-1.5 px-1">
             <div className="flex items-baseline justify-between">
@@ -510,7 +514,7 @@ export const CustomerCheckout: React.FC<CustomerCheckoutProps> = ({
               </label>
             )}
 
-            <div data-testid="checkout-native-guidance" className="rounded-xl p-3 border border-slate-500 bg-[var(--surface-inset)] text-sm space-y-2 text-slate-300"><p>{transportText.fallback}</p><p>{transportText.inside}</p></div>
+            {order.matchingMode==='unique-amount-v1'?<section data-testid="automatic-payment-monitor" className="rounded-xl p-3 border border-slate-500 bg-[var(--surface-inset)] space-y-2 text-sm"><h3 className="font-bold text-[var(--gold-ink)]">{autoText.title}</h3><p>{autoText.guide}</p><p role="status">{order.paymentStatus==='confirmed'?autoText.confirmed:order.autoMatchState==='unavailable'?autoText.unavailable:order.autoMatchState==='limited'?autoText.limited:order.autoMatchState==='needs_review'?autoText.review:order.autoMatchCheckedAt?autoText.watching:autoText.waiting}</p>{order.autoMatchCheckedAt&&<p className="text-xs text-slate-300">{autoText.checked}: {new Date(order.autoMatchCheckedAt).toLocaleTimeString()}</p>}</section>:<div data-testid="checkout-native-guidance" className="rounded-xl p-3 border border-slate-500 bg-[var(--surface-inset)] text-sm space-y-2 text-slate-300"><p>{transportText.fallback}</p><p>{transportText.inside}</p></div>}
 
             {/* Action Buttons */}
             <div className="space-y-2.5 pt-1">
@@ -598,12 +602,12 @@ export const CustomerCheckout: React.FC<CustomerCheckoutProps> = ({
 
               </div>
               <p className="text-slate-300 leading-relaxed">
-                {capabilities.hostLimitationSummary}
+                {order.matchingMode==='unique-amount-v1'?autoText.guide:capabilities.hostLimitationSummary}
               </p>
             </div>
 
             {/* On-chain Transaction Hash Verification Input */}
-            <div className="pt-2 border-t border-slate-600/80 space-y-2">
+            {order.matchingMode!=='unique-amount-v1'&&<div className="pt-2 border-t border-slate-600/80 space-y-2">
               <label
                 htmlFor="tx-hash-verify-input"
                 className="block text-[13px] font-medium text-slate-300"
@@ -628,7 +632,7 @@ export const CustomerCheckout: React.FC<CustomerCheckoutProps> = ({
                   {verifying ? '...' : 'Verify'}
                 </button>
               </div>
-            </div>
+            </div>}
 
           </div>
 
