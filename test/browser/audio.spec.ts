@@ -12,11 +12,11 @@ async function setup(page:Page){
 }
 test('audio preview selects the correct language, respects mute and preserves independent preferences',async({page})=>{
  await setup(page);let paymentWrites=0;page.on('request',req=>{if(req.method()==='POST'&&/\/api\/(public\/orders|seller\/orders)/.test(req.url()))paymentWrites++;});
- await page.goto('/seller/settings');await page.locator('#voice-lang-select').selectOption('id');await page.locator('#cashier-voice-select').selectOption('id-natural');
+ await page.goto('/seller/settings');await expect(page.locator('#voice-lang-select')).toHaveValue('id');await page.locator('#voice-lang-select').selectOption('id');await page.locator('#cashier-voice-select').selectOption('id-natural');
  await page.getByTestId('enable-cashier-audio').click();await expect(page.getByTestId('enable-cashier-audio')).toHaveText('✓ Cashier audio active');
  await expect(page.getByTestId('preview-confirmed-audio')).toBeEnabled();await page.getByTestId('preview-confirmed-audio').click();
  await expect.poll(()=>page.evaluate(()=>(window as any).__spoken.length)).toBe(1);
- expect(await page.evaluate(()=>(window as any).__spoken[0])).toMatchObject({lang:'id-ID',voice:'id-natural',text:'Contoh suara. Mode uji. Pembayaran diterima. 2 token uji.'});
+ expect(await page.evaluate(()=>(window as any).__spoken[0])).toMatchObject({lang:'id-ID',voice:'id-natural',text:'Pembayaran diterima, seribu nim.'});
  await expect(page.getByTestId('preview-confirmed-audio')).toBeEnabled();
  await page.getByRole('button',{name:'Mute cashier audio',exact:true}).click();await expect(page.getByTestId('preview-confirmed-audio')).toBeDisabled();
  await page.locator('#audio-volume-range').fill('0.35');await page.reload();

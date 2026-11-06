@@ -3,7 +3,7 @@ import { paymentSpeech } from './paymentSpeech';
 type Job={kind:'ready'|'confirmed';amount:string;key:string;preview:boolean;at:number;locale:SupportedLocale};
 export class CashierAudioEngine {
  private ctx:AudioContext|null=null;
- private unlocked=false;private muted=false;private volume=.8;private voiceLocale:SupportedLocale='en';private voiceURI='';private primary=false;private enabled=true;private scope='';
+ private unlocked=false;private muted=false;private volume=.8;private voiceLocale:SupportedLocale='id';private voiceURI='';private primary=false;private enabled=true;private scope='';
  private id=`tab_${Math.random().toString(36).slice(2)}`;private queue:Job[]=[];private running=false;private seen=new Set<string>();private generation=0;private listeners=new Set<()=>void>();private finishSpeech:(()=>void)|null=null;private currentJob:Job|null=null;private oscillators=new Set<OscillatorNode>();private heartbeat:ReturnType<typeof setInterval>|null=null;
  constructor(){if(typeof window!=='undefined'){window.addEventListener('storage',event=>{if(event.key===this.leaseKey())this.syncLease();});window.addEventListener('pagehide',()=>this.stop());window.addEventListener('pageshow',()=>{if(this.unlocked)this.claimPrimaryDevice();});window.speechSynthesis?.addEventListener('voiceschanged',()=>this.emit());}}
  private emit(){for(const cb of this.listeners)cb();}
@@ -13,10 +13,11 @@ export class CashierAudioEngine {
  private selectedVoice(){const voices=this.getVoices();return voices.find(v=>v.voiceURI===this.voiceURI)||voices[0];}
  public getStatus(){return {unlocked:this.unlocked,muted:this.muted,volume:this.volume,voiceLocale:this.voiceLocale,voiceURI:this.voiceURI,isPrimaryDevice:this.primary,deviceId:this.id,voiceAvailable:!!this.selectedVoice(),voiceName:this.selectedVoice()?.name||'',busy:this.running};}
  private prefKey(){return `nimtera.audio.preferences.${this.scope}`;}private leaseKey(){return `nimtera.audio.tab.${this.scope}`;}
- public setScope(scope:string,defaultLocale:SupportedLocale='en'){
-  if(this.scope===scope)return;this.stop();this.scope=scope;this.seen.clear();this.muted=false;this.volume=.8;this.voiceLocale=defaultLocale;this.voiceURI='';this.enabled=true;
-  try {const pref=JSON.parse(localStorage.getItem(this.prefKey())||'null');if(pref){this.muted=pref.muted===true;this.volume=Number.isFinite(pref.volume)?Math.max(0,Math.min(1,pref.volume)):.8;if(pref.voiceLocale in LOCALE_METADATA)this.voiceLocale=pref.voiceLocale;this.voiceURI=typeof pref.voiceURI==='string'?pref.voiceURI:'';}}catch{}this.emit();
+ public setScope(scope:string,defaultLocale:SupportedLocale='id'){
+  if(this.scope===scope)return;this.stop();this.scope=scope;this.seen.clear();this.muted=false;this.volume=.8;this.voiceLocale=defaultLocale==='en'?'id':defaultLocale;this.voiceURI='';this.enabled=true;
+  try {const pref=JSON.parse(localStorage.getItem(this.prefKey())||'null');if(pref){this.muted=pref.muted===true;this.volume=Number.isFinite(pref.volume)?Math.max(0,Math.min(1,pref.volume)):.8;if(pref.voiceLocale in LOCALE_METADATA && (pref.languageVersion===2 || pref.voiceLocale!=='en')){this.voiceLocale=pref.voiceLocale;this.voiceURI=typeof pref.voiceURI==='string'?pref.voiceURI:'';}}}catch{}this.savePreferences();this.emit();
  }
+ private savePreferences(){try{if(this.scope)localStorage.setItem(this.prefKey(),JSON.stringify({languageVersion:2,muted:this.muted,volume:this.volume,voiceLocale:this.voiceLocale,voiceURI:this.voiceURI}));}catch{}}
  private lease():{id:string;until:number}|null {try{return JSON.parse(localStorage.getItem(this.leaseKey())||'null');}catch{return null;}}
  private syncLease(){const lease=this.lease();const next=!!lease&&lease.id===this.id&&lease.until>Date.now();if(this.primary&&!next)this.cancel();this.primary=next;this.emit();}
  public claimPrimaryDevice(){if(!this.scope||!this.unlocked||!this.enabled||this.muted)return;try{localStorage.setItem(this.leaseKey(),JSON.stringify({id:this.id,until:Date.now()+4500}));this.primary=true;}catch{this.primary=true;}if(!this.heartbeat)this.heartbeat=setInterval(()=>{if(!this.primary||!this.unlocked||this.muted)return;const current=this.lease();if(current&&current.id!==this.id&&current.until>Date.now()){this.syncLease();return;}try{localStorage.setItem(this.leaseKey(),JSON.stringify({id:this.id,until:Date.now()+4500}));}catch{}},1500);this.emit();}
@@ -33,7 +34,7 @@ export class CashierAudioEngine {
   if(opts.voiceLocale!==undefined){this.cancel();this.voiceLocale=opts.voiceLocale;this.voiceURI='';}
   if(opts.voiceURI!==undefined){this.cancel();this.voiceURI=opts.voiceURI;}
   if(opts.isPrimaryDevice!==undefined){this.enabled=opts.isPrimaryDevice;if(this.enabled)this.claimPrimaryDevice();else{this.cancel();this.release();}}
-  try{if(this.scope)localStorage.setItem(this.prefKey(),JSON.stringify({muted:this.muted,volume:this.volume,voiceLocale:this.voiceLocale,voiceURI:this.voiceURI}));}catch{}this.emit();
+  this.savePreferences();this.emit();
  }
  private cancel(){for(const osc of this.oscillators){try{osc.stop();}catch{}}this.oscillators.clear();this.generation++;this.queue=[];try{window.speechSynthesis?.cancel();}catch{}this.finishSpeech?.();this.finishSpeech=null;}
  public stopPreview(){if(this.currentJob?.preview||!this.currentJob)this.cancel();}

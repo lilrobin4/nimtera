@@ -13,7 +13,7 @@ const COPY:Record<SupportedLocale,string[]>={
 export function useCashierAudioStatus(){const [status,setStatus]=useState(()=>cashierAudio.getStatus());useEffect(()=>{const refresh=()=>setStatus(cashierAudio.getStatus());refresh();return cashierAudio.subscribe(refresh);},[]);return status;}
 export function CashierAudioSettings({locale,activeEnv}:{locale:SupportedLocale;activeEnv:string}){
  const state=useCashierAudioStatus(),t=TRANSLATIONS[locale],text=COPY[locale],voices=cashierAudio.getVoices();const active=state.unlocked&&!state.muted&&state.volume>0&&state.isPrimaryDevice;const blocked=state.muted||state.volume===0||state.busy;
- const readyAmount=activeEnv==='testnet'?'110 NIM (TESTNET)':'110 NIM',confirmedAmount=activeEnv==='testnet'?'2.00 TEST TOKEN':'2.00 USDT';
+ const readyAmount=activeEnv==='testnet'?'1000 NIM (TESTNET)':'1000 NIM',confirmedAmount=activeEnv==='testnet'?'1000 NIM (TESTNET)':'1000 NIM';
  return <section className="bg-[#1C2430] border border-slate-600 rounded-2xl p-6 space-y-4" aria-label={t.audioSettingsTitle} aria-busy={state.busy}>
   <h2 className="text-lg font-bold">{t.audioSettingsTitle}</h2>
   <button type="button" data-testid="enable-cashier-audio" onClick={async()=>{cashierAudio.setConfig({muted:false,...(state.volume===0?{volume:.8}:{})});if(await cashierAudio.unlock())cashierAudio.playInvoiceReadyChime();}} className="w-full py-2.5 px-4 rounded-xl bg-teal-400 text-slate-950 font-semibold text-sm">{active?'✓ '+text[0]:text[1]}</button>

@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { CashierAudioEngine } from '../src/lib/audio';
-import { paymentSpeech } from '../src/lib/paymentSpeech';
+import { paymentSpeech,indonesianInteger } from '../src/lib/paymentSpeech';
 import { LOCALE_METADATA,type SupportedLocale } from '../src/lib/i18n';
 const pause=(ms:number)=>new Promise(resolve=>setTimeout(resolve,ms));
 async function idle(engine:CashierAudioEngine){const deadline=Date.now()+5000;while(engine.getStatus().busy&&Date.now()<deadline)await pause(15);assert.equal(engine.getStatus().busy,false);}
@@ -17,10 +17,22 @@ function browser(){
  Object.defineProperty(globalThis,'SpeechSynthesisUtterance',{configurable:true,value:class {constructor(public text:string){}}});
  return {spoken,tones,get cancelled(){return cancelled;},restore(){for(const [key,value] of Object.entries(originals))if(value)Object.defineProperty(globalThis,key,value);else delete (globalThis as any)[key];}};
 }
-test('six-language speech has one test label, precise decimals and no raw order IDs',()=>{
- for(const locale of Object.keys(LOCALE_METADATA) as SupportedLocale[]){const phrase=paymentSpeech('confirmed','[TESTNET] 110.50000 NIM (TESTNET)',locale,true);assert.doesNotMatch(phrase,/TESTNET|#T01|110\.50000/);assert.match(phrase,/110/);assert.match(phrase,/Nimiq/);}
- assert.equal(paymentSpeech('confirmed','0.00001 NIM','id'),'Pembayaran diterima. 0 koma 0 0 0 0 1 Nimiq.');
- assert.equal(paymentSpeech('confirmed','2.00 TEST TOKEN','en',true),'Audio preview. Test mode. Payment received. 2 test tokens.');
+test('six-language speech is status plus exact amount only, without test/preview prefixes',()=>{
+ for(const locale of Object.keys(LOCALE_METADATA) as SupportedLocale[]){const phrase=paymentSpeech('confirmed','[TESTNET] 110.50000 NIM (TESTNET)',locale,true);assert.doesNotMatch(phrase,/TESTNET|#T01|110\.50000/);assert.match(phrase,locale==='id'?/seratus sepuluh/:/110/);assert.match(phrase,/nim/i);}
+ assert.equal(paymentSpeech('confirmed','0.00001 NIM','id'),'Pembayaran diterima, nol koma nol nol nol nol satu nim.');
+ assert.equal(paymentSpeech('confirmed','2.00 TEST TOKEN','en',true),'Payment received, 2 test tokens.');
+});
+test('Indonesian amounts are clear words, including 1000 NIM and precise decimals',()=>{
+ assert.equal(paymentSpeech('confirmed','1000 NIM (TESTNET)','id'),'Pembayaran diterima, seribu nim.');
+ assert.equal(paymentSpeech('confirmed','1500.25 NIM','id'),'Pembayaran diterima, seribu lima ratus koma dua lima nim.');
+ for(const [input,expected] of [['0','nol'],['11','sebelas'],['110','seratus sepuluh'],['1000000','satu juta'],['1001001','satu juta seribu satu'],['999999999999999999999','sembilan ratus sembilan puluh sembilan kuintiliun sembilan ratus sembilan puluh sembilan kuadriliun sembilan ratus sembilan puluh sembilan triliun sembilan ratus sembilan puluh sembilan miliar sembilan ratus sembilan puluh sembilan juta sembilan ratus sembilan puluh sembilan ribu sembilan ratus sembilan puluh sembilan']])assert.equal(indonesianInteger(input),expected);
+});
+test('legacy English default migrates to Indonesian once; explicitly selecting English still persists',()=>{
+ const env=browser(),one=new CashierAudioEngine(),two=new CashierAudioEngine();try{
+ localStorage.setItem('nimtera.audio.preferences.legacy',JSON.stringify({voiceLocale:'en',voiceURI:'en',volume:.4,muted:false}));
+ one.setScope('legacy','en');assert.equal(one.getStatus().voiceLocale,'id');assert.equal(one.getStatus().voiceURI,'');assert.equal(one.getStatus().volume,.4);
+ one.setConfig({voiceLocale:'en'});two.setScope('legacy','id');assert.equal(two.getStatus().voiceLocale,'en');
+ }finally{one.stop();two.stop();env.restore();}
 });
 test('cashier audio sequences chime then matching voice, queues confirmations and deduplicates persistently',async()=>{
  const env=browser(),engine=new CashierAudioEngine();
