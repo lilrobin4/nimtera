@@ -1,17 +1,31 @@
-# NimTera Security Policy
+# NimTera Security
 
-## 1. Non-Custodial Payment Architecture
-- NimTera never holds, escrows, or routes customer or merchant funds through a server wallet.
-- NimTera never asks for seed phrases, recovery words, or private keys.
-- Every order stores an immutable **recipient wallet snapshot** (`snapshotRecipient`, `asset`, `network`, `amountBase`) at order creation time. If a merchant updates their wallet address later, existing orders are never silently redirected.
+NimTera is an independent **testnet beta**, not an audited production payment service. Mainnet checkout and native mainnet sends are disabled.
 
-## 2. Merchant Authentication & Access Control
-- **Password Policy:** Minimum 15 characters, supporting password managers and paste, verified against common breached password patterns, and hashed using salted `node:crypto` `scrypt` with constant-time comparison (`timingSafeEqual`).
-- **Two-Factor Authentication (2FA):** RFC 6238 TOTP 6-digit verification is enforced on seller login and on any recipient wallet update.
-- **Store Isolation:** Backend authorization middleware scopes all seller queries and mutations strictly to the authenticated seller's `storeSlug`. One merchant can never read or modify another merchant's products, wallets, or orders.
+## Accounts
 
-## 3. On-Chain Payment Verification & Anti-Replay
-- Browser-submitted transaction hashes are treated as untrusted hints until verified against allowlisted Nimiq Mainnet or Polygon Mainnet RPC endpoints.
-- **Polygon USDT Verification:** Verifies Chain ID `137`, `receipt.status === "0x1"`, and the `Transfer(address,address,uint256)` event log from contract `0xc2132D05D31c914a87C6611C10748AEb04B58e8F`.
-- **Anti-Replay:** Every verified `txHash` is bound atomically to a single `orderId`. Attempting to reuse a transaction hash on a second order is rejected.
-- **Ambiguous States (`needs_review`):** Underpayments, overpayments, wrong-contract transfers, and post-expiry confirmations are routed to `needs_review`. Upstream RPC timeouts keep the order in `pending` and never falsely mark a payment as failed.
+- Seller passwords must contain at least 15 characters. Password managers and paste are supported; passwords are salted and hashed rather than stored as plain text.
+- Authenticator 2FA is **optional at registration**. Enable it later in **Settings → Security** using your current password and a valid setup code. Once enabled, login and receiving-wallet changes require the authenticator code.
+- Setup QR codes and keys are private. Setup requires reauthentication, expires after ten minutes and is tied to the initiating session. Enabling 2FA revokes other account sessions.
+- Sessions use a host-only HttpOnly cookie valid for up to eight hours. Authentication, setup and sensitive actions have request limits; cookie-based mutations check browser origins.
+- Backend authorization scopes seller operations to the authenticated shop. Optional 2FA does not remove password reauthentication for wallet changes.
+- Automatic account recovery and self-service 2FA removal are not available. Keep your authenticator backup safely.
+
+## Wallets and payments
+
+- The app does not request seed phrases or private keys, hold merchant funds or initiate automatic refunds.
+- Each invoice fixes its recipient, asset, amount, network and applicable token details. Later wallet edits do not redirect existing invoices.
+- Browser-supplied hashes are untrusted hints. The server checks matching testnet chain evidence before confirming a payment and guards against reusing a verified transaction for another order.
+- Polygon Amoy requires explicitly configured test-token support. It is not a mainnet USDT payment route.
+- An RPC timeout or unknown wallet outcome is not evidence of failure. Check the order and wallet history before sending again.
+- Wallet binding and wallet-signature seller login are not available yet. A wallet address alone is not proof of ownership.
+
+## Uploads and privacy
+
+Product photos and shop logos are public assets. Only upload images you are permitted to publish. Supported raster uploads are size-limited, validated and re-encoded without original metadata; SVG uploads are not accepted. The backend checks image ownership before attaching an uploaded image to a shop or product.
+
+## Reporting a concern
+
+Contact the [repository owner](https://github.com/lilrobin4) through an available private channel. Do not put passwords, tokens, authenticator keys, customer data or working exploit details in public issues. If no private channel is listed, request a private reporting method without including sensitive details.
+
+Never reuse credentials from historical demo versions or commit real environment files. A passing test suite is not a security audit or a guarantee of physical wallet compatibility.

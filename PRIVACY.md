@@ -1,17 +1,35 @@
-# NimTera Privacy Policy
+# NimTera Privacy
 
-**Effective Date:** November 2026  
-**Domain:** `https://nimtera.store`
+**Updated:** 6 November 2026
 
-## 1. Customer Data Minimization
-- **No Customer Accounts:** Customers browse menus, place orders, and pay via Nimiq Pay without creating an account or signing in.
-- **Unlisted Order Capability Tokens:** Each order is assigned a high-entropy random token (`/s/:slug/order/:publicToken`). Public users cannot list or enumerate store orders.
-- **Delivery Information Protection:** Delivery recipient name, phone number, and street address are only collected when a customer explicitly selects the **Delivery** fulfillment option. Delivery details are stripped from public API responses and are accessible strictly to the authenticated merchant of that store.
+**Current application:** https://nimtera.vercel.app
 
-## 2. Blockchain Transparency Notice
-- Payments made in **NIM (Nimiq Mainnet)** and **USDT (Polygon Mainnet)** are settled directly on public blockchains between the customer's wallet and the merchant's recipient wallet.
-- On-chain transaction hashes, wallet addresses, and transfer amounts are inherently public on the Nimiq and Polygon networks.
+NimTera is an independent testnet beta. This notice describes the current app; it does not claim an active custom-domain deployment or mainnet payment support.
 
-## 3. Logging & Retention
-- Server logs never record seller passwords, session tokens, 2FA secrets, or full customer delivery addresses.
-- Merchants can export their store's order records via CSV and manage order retention in accordance with local tax and commerce regulations.
+## Seller accounts
+
+The service stores the seller email, password hash, shop profile, configured receiving addresses, products, orders and account-security state. Authenticator 2FA is optional and can be enabled in Settings → Security; its setup secret must be kept private. Passwords, wallet seed phrases and private keys should never be shared with other users or posted in the repository. NimTera does not ask for wallet seed phrases or private keys.
+
+Seller login uses an essential HttpOnly session cookie valid for up to eight hours. Device storage retains interface language, audio preferences and limited audio-deduplication/tab-coordination information. Payment-attempt journals help prevent an uncertain native send from being repeated blindly; do not clear them to retry before checking wallet history.
+
+## Customers and orders
+
+Customers do not need an account to browse or place orders. Sellers receive the details needed to fulfill their own shop's orders. Delivery contact information is collected when delivery is selected and is excluded from public order responses.
+
+Keep order links private: anyone holding an order link can view its public order summary and payment status. They are not a substitute for authenticated seller access. Public shop names, catalog details and prices are visible to visitors.
+
+## Photos and logos
+
+Uploaded product photos and shop logos are public assets, not private documents. Images are optimized and re-encoded without original metadata. Replacing/removing a logo or deleting a product removes its use in that location; it does not promise erasure of the immutable image file or already cached copies. Only upload images you have permission to publish.
+
+## Wallets and speech
+
+Wallet addresses, transaction hashes and transfer amounts can be public on the relevant test networks. Mainnet payments are disabled in this release.
+
+Cashier speech uses the browser/device's available voices. Depending on the selected voice and operating system, the speech provider may process announcement text using an online service. Current announcements contain payment status, nominal amount and asset, not email, delivery contact information or full order identifiers.
+
+## Storage and account requests
+
+Cloud account, order and uploaded-image data uses the configured application database; standalone development stores data locally. Do not put real customer information into sample or test accounts.
+
+Self-service account deletion, automatic account recovery and an automated retention policy are not available in this beta. For account/privacy requests, contact the [repository owner](https://github.com/lilrobin4) through an available private channel without posting credentials or customer details publicly. Contact the relevant seller about fulfillment and order questions. No blanket guarantee of immediate deletion from database backups, browser caches or public blockchain records is made.
