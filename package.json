@@ -1,27 +1,31 @@
 {
-  "name": "react-example",
+  "name": "nimtera",
   "private": true,
   "version": "0.0.0",
   "type": "module",
   "scripts": {
     "dev": "tsx server.ts",
-    "build": "vite build",
+    "build": "npm run lint && vite build",
     "start": "node --import tsx server.ts",
     "preview": "vite preview",
     "clean": "rm -rf dist server.js",
     "lint": "tsc --noEmit",
-    "test": "tsx --test src/lib/domain.test.ts"
+    "test": "tsx --test src/lib/domain.test.ts test/security.test.ts test/postgres.test.ts test/i18n.test.ts test/repository-hygiene.test.ts && node scripts/check-api.mjs",
+    "build:ui": "VITE_UI_PREVIEW=true npm run build",
+    "test:browser": "playwright test"
   },
   "dependencies": {
-    "@google/genai": "^2.4.0",
+    "@nimiq/mini-app-sdk": "^0.2.5",
     "@tailwindcss/vite": "^4.3.3",
     "@types/qrcode": "^1.5.6",
     "@types/three": "^0.187.0",
     "@vitejs/plugin-react": "^6.1.1",
     "dotenv": "^17.2.3",
+    "ethers": "^6.15.0",
     "express": "^4.21.2",
     "lucide-react": "^0.546.0",
     "motion": "^12.23.24",
+    "pg": "^8.23.1",
     "qrcode": "^1.5.4",
     "react": "^19.0.1",
     "react-dom": "^19.0.1",
@@ -29,14 +33,18 @@
     "vite": "^8.3.0"
   },
   "devDependencies": {
+    "@babel/parser": "^7.29.13",
+    "@electric-sql/pglite": "^0.5.15",
+    "@playwright/test": "^1.65.0",
+    "@types/express": "^4.17.21",
     "@types/node": "^22.14.0",
+    "@types/pg": "^8.23.1",
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",
     "autoprefixer": "^10.4.21",
-    "esbuild": "^0.25.0",
+    "esbuild": "^0.28.2",
     "tailwindcss": "^4.3.3",
     "tsx": "^4.21.0",
-    "typescript": "^7.0.2",
-    "@types/express": "^4.17.21"
+    "typescript": "^7.0.2"
   }
 }

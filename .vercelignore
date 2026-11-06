@@ -1,0 +1,19 @@
+# Deploy source only; keep credentials, local state and test artifacts out.
+.git/
+.vercel/
+node_modules/
+dist/
+build/
+coverage/
+.env*
+.data/
+.nimtera-store-db.json
+.aistudio/
+src/assets/
+public/assets/aistudio/
+test/
+**/*.test.ts
+playwright.config.ts
+playwright-report/
+test-results/
+*.log

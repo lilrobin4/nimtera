@@ -1,3 +1,4 @@
+import { uiText, uiChoice, categoryCopy } from '../lib/uiLocale';
 import React, { Suspense, useEffect, useMemo, useState } from 'react';
 import { Plus, Minus, ArrowLeft, SlidersHorizontal, AlertTriangle, ShoppingBag, Globe, ShieldCheck, FlaskConical } from 'lucide-react';
 import {
@@ -283,8 +284,8 @@ export const CustomerStorefront: React.FC<CustomerStorefrontProps> = ({
             </span>
             <span className="font-medium">
               {isTestnet
-                ? 'Menggunakan Nimiq Testnet (NIM TESTNET) & Polygon Amoy (Chain ID 80002 · TEST TOKEN — Bukan USDT Asli). Pesanan testnet terpisah ketat & bukan penjualan nyata.'
-                : 'Menggunakan Nimiq Mainnet (NIM) & Polygon Mainnet (Chain ID 137 · USDT Kontrak 0xc213...8e8F). Transaksi memakai dana asli.'}
+                ? uiText(locale, "Menggunakan Nimiq Testnet (NIM TESTNET) & Polygon Amoy (Chain ID 80002 · TEST TOKEN — Bukan USDT Asli). Pesanan testnet terpisah ketat & bukan penjualan nyata.")
+                : uiText(locale, "Menggunakan Nimiq Mainnet (NIM) & Polygon Mainnet (Chain ID 137 · USDT Kontrak 0xc213...8e8F). Transaksi memakai dana asli.")}
             </span>
           </div>
 
@@ -332,7 +333,7 @@ export const CustomerStorefront: React.FC<CustomerStorefrontProps> = ({
         <div className="relative z-10 grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
           {/* Left 8 Columns: Hero + Category Filter + Product Grid */}
           <div className="lg:col-span-8 space-y-8">
-            {/* Split Hero Section matching elegant-storefront_b1de5763.png */}
+            {/* Split Hero Section */}
             <section className="grid grid-cols-1 md:grid-cols-12 gap-6 items-center pt-2 pb-4 border-b border-slate-800/70">
               <div className="md:col-span-7 space-y-4">
                 <h1
@@ -415,8 +416,7 @@ export const CustomerStorefront: React.FC<CustomerStorefrontProps> = ({
                         ? 'bg-[#14B8A6] text-[#071318] font-semibold shadow-sm'
                         : 'text-slate-600 hover:text-[#1C1917] bg-[#FFFFFF] border border-[#E2D9C8]'
                     }`}
-                  >
-                    Semua Kolom ({products.filter((p) => p.available).length})
+                  >{' '}{uiText(locale, "Semua Kolom (")}{' '}{products.filter((p) => p.available).length})
                   </button>
                   {MENU_CATEGORY_COLUMNS.map((col) => {
                     const active = selectedCategory === col.id;
@@ -436,7 +436,7 @@ export const CustomerStorefront: React.FC<CustomerStorefrontProps> = ({
                             : 'text-slate-600 hover:text-[#1C1917] bg-[#FFFFFF] border border-[#E2D9C8]'
                         }`}
                       >
-                        {col.titleId} ({count})
+                        {categoryCopy(col.id, locale).title} ({count})
                       </button>
                     );
                   })}
@@ -476,21 +476,19 @@ export const CustomerStorefront: React.FC<CustomerStorefrontProps> = ({
                           <div className="flex items-center gap-2">
                             <span
                               className={`px-2.5 py-0.5 rounded-full text-xs font-bold border ${col.accentClass}`}
-                            >
-                              Kolom {col.titleId}
+                            >{' '}{uiText(locale, "Kolom")}{' '}{categoryCopy(col.id, locale).title}
                             </span>
                             <span className="text-xs text-slate-500 font-medium tabular-nums">
                               {colProducts.length} menu
                             </span>
                           </div>
-                          <p className="text-xs text-slate-500 mt-1">{col.subtitleId}</p>
+                          <p className="text-xs text-slate-500 mt-1">{categoryCopy(col.id, locale).subtitle}</p>
                         </div>
                       </div>
 
                       {/* Items inside this Category Column */}
                       {colProducts.length === 0 ? (
-                        <div className="p-6 text-center text-xs text-slate-500">
-                          Belum ada menu di kolom {col.titleId}.
+                        <div className="p-6 text-center text-xs text-slate-500">{' '}{uiText(locale, "Belum ada menu di kolom")}{' '}{categoryCopy(col.id, locale).title}.
                         </div>
                       ) : (
                         <div
@@ -555,13 +553,12 @@ export const CustomerStorefront: React.FC<CustomerStorefrontProps> = ({
 
                                   <div className="min-w-0 space-y-1">
                                     <div className="flex items-center gap-1.5 text-[11px] text-slate-500 uppercase tracking-wider">
-                                      <span>{col.titleId}</span>
+                                      <span>{categoryCopy(col.id, locale).title}</span>
                                       {inCart > 0 && (
                                         <>
                                           <span aria-hidden="true">·</span>
                                           <span className="text-[#0F766E] font-bold">
-                                            {inCart} di pesanan
-                                          </span>
+                                            {inCart}{' '}{uiText(locale, "di pesanan")}{' '}</span>
                                         </>
                                       )}
                                     </div>
@@ -610,7 +607,7 @@ export const CustomerStorefront: React.FC<CustomerStorefrontProps> = ({
             </section>
           </div>
 
-          {/* Right 4 Columns: "Your order" Card matching elegant-storefront_b1de5763.png */}
+          {/* Right 4 Columns: "Your order" Card */}
           <aside
             id="order-panel"
             aria-label="Your order summary"
@@ -883,11 +880,7 @@ export const CustomerStorefront: React.FC<CustomerStorefrontProps> = ({
                   data-testid="amoy-contract-notice"
                   className="p-2.5 rounded-xl bg-amber-100 border border-amber-400 text-amber-950 text-[11px] leading-relaxed"
                 >
-                  <strong>Catatan Kontrak TEST TOKEN Amoy (Chain 80002):</strong> Kontrak ERC-20 uji
-                  belum dikonfigurasi di Pengaturan Seller. Kontrak USDT Mainnet (
-                  <code className="font-mono">0xc213...8e8F</code>) dilarang dipakai di Amoy.
-                  Mintalah persetujuan terlebih dahulu sebelum melakukan deployment kontrak token uji.
-                </div>
+                  <strong>{' '}{uiText(locale, "Catatan Kontrak TEST TOKEN Amoy (Chain 80002):")}{' '}</strong>{' '}{uiText(locale, "Kontrak ERC-20 uji belum dikonfigurasi di Pengaturan Seller. Kontrak USDT Mainnet (")}{' '}<code className="font-mono">0xc213...8e8F</code>{' '}{uiText(locale, ") dilarang dipakai di Amoy. Mintalah persetujuan terlebih dahulu sebelum melakukan deployment kontrak token uji.")}{' '}</div>
               )}
             </div>
 

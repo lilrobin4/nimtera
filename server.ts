@@ -1,9 +1,11 @@
+import { requestState, scopedDatabase, scopedMap } from './src/server/requestState.js';
+import { verifyMessage } from 'ethers';
+import { readPaymentEvidence, paymentIntentMessage } from './src/server/payments.js';
 import 'dotenv/config';
 import express, { type Request, type Response, type NextFunction } from 'express';
 import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
-import { createServer as createViteServer } from 'vite';
 import {
   calculateCartTotals,
   createValidNimiqAddress,
@@ -31,11 +33,12 @@ import {
   type OrderSnapshot,
   type PaymentAsset,
   type ProductRecord,
-} from './src/lib/domain';
-import type { SupportedLocale } from './src/lib/i18n';
+} from './src/lib/domain.js';
+import type { SupportedLocale } from './src/lib/i18n.js';
 
-const PORT = 3000;
-const DATA_FILE = path.resolve(process.cwd(), '.nimtera-store-db.json');
+const PORT = Number(process.env.PORT || 3000);
+const TESTNET_ONLY = true;
+const DATA_FILE = path.resolve(process.env.NIMTERA_DATA_FILE || '.data/store.json');
 
 // Strictly separated allowlisted upstream RPC URLs per network (no cross-network fallback)
 const ALLOWLISTED_NIMIQ_TESTNET_RPC =
@@ -95,6 +98,7 @@ export interface AuditLogEntry {
 }
 
 interface SessionRecord {
+  mfaVerified: boolean;
   token: string;
   sellerId: string;
   storeSlug: string;
@@ -153,477 +157,35 @@ function verifyTotpCode(secretHex: string, inputCode: string, nowMs = Date.now()
   return false;
 }
 
-function createInitialSeedDatabase(): DatabaseState {
-  const moonlightNimiq = createValidNimiqAddress('M00NL1GHTCAFE778899AABBCCDDEEFF0');
-  const moonlightTestnetNimiq = createValidNimiqAddress('TESTNETM00NL1GHT0011223344556677');
-  const auroraNimiq = createValidNimiqAddress('AUR0RAR0ASTERS112233445566778899');
-  const auroraTestnetNimiq = createValidNimiqAddress('TESTNETAUR0RA0001122334455667788');
-
-  const moonlightPass = hashPassword('Moonlight#NightMarket!2026');
-  const auroraPass = hashPassword('AuroraRoasters#Night!2026');
-
-  const moonlightSeller: SellerAccount = {
-    id: 'sel_moonlight',
-    email: 'merchant@moonlight.store',
-    passwordSalt: moonlightPass.salt,
-    passwordHash: moonlightPass.hash,
-    totpSecretHex: '4d6f6f6e6c696768744e696d5465726132303236',
-    totpEnabled: true,
-    emailVerified: true,
-    storeSlug: 'moonlight-cafe',
-    createdAt: '2026-11-01T18:00:00.000Z',
-  };
-
-  const auroraSeller: SellerAccount = {
-    id: 'sel_aurora',
-    email: 'seller@aurora.store',
-    passwordSalt: auroraPass.salt,
-    passwordHash: auroraPass.hash,
-    totpSecretHex: '4175726f7261526f617374657273536563726574',
-    totpEnabled: true,
-    emailVerified: true,
-    storeSlug: 'aurora-roasters',
-    createdAt: '2026-11-01T19:00:00.000Z',
-  };
-
-  const stores: StoreRecord[] = [
-    {
-      slug: 'moonlight-cafe',
-      name: 'Moonlight Cafe',
-      sellerId: moonlightSeller.id,
-      activeEnvironment: DEFAULT_NETWORK_ENV,
-      nimiqAddress: moonlightNimiq,
-      polygonAddress: '0x129A40885B3fe74921c88492A09B6429371b9A40',
-      nimiqTestnetAddress: moonlightTestnetNimiq,
-      polygonAmoyAddress: '0x71C95911E9a5D330f4D621842EC243EE1343292e',
-      polygonAmoyTestTokenContract: process.env.POLYGON_AMOY_TEST_TOKEN_CONTRACT || null,
-      supportsPickup: true,
-      supportsDelivery: true,
-      supportsDineIn: true,
-      defaultLocale: 'en',
-      voiceLocale: 'en',
-      createdAt: '2026-11-01T18:00:00.000Z',
-      updatedAt: '2026-11-01T18:00:00.000Z',
-    },
-    {
-      slug: 'aurora-roasters',
-      name: 'Aurora Night Roasters',
-      sellerId: auroraSeller.id,
-      activeEnvironment: DEFAULT_NETWORK_ENV,
-      nimiqAddress: auroraNimiq,
-      polygonAddress: '0x88492A09B6429371b9A40129A40885B3fe74921c',
-      nimiqTestnetAddress: auroraTestnetNimiq,
-      polygonAmoyAddress: '0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC',
-      polygonAmoyTestTokenContract: process.env.POLYGON_AMOY_TEST_TOKEN_CONTRACT || null,
-      supportsPickup: true,
-      supportsDelivery: false,
-      supportsDineIn: true,
-      defaultLocale: 'id',
-      voiceLocale: 'id',
-      createdAt: '2026-11-01T19:00:00.000Z',
-      updatedAt: '2026-11-01T19:00:00.000Z',
-    },
-  ];
-
-  const products: ProductRecord[] = [
-    {
-      id: 'prod_iced_latte',
-      storeSlug: 'moonlight-cafe',
-      name: 'Iced Latte',
-      description: 'Double-shot night market espresso layered over cold velvet milk.',
-      category: 'drinks',
-      imageUrl: '/src/assets/images/product_iced_latte_1793717983788.jpg',
-      available: true,
-      priceNimLuna: '4000000', // 40 NIM
-      priceUsdtMicro: '1200000', // 1.20 USDT
-    },
-    {
-      id: 'prod_matcha',
-      storeSlug: 'moonlight-cafe',
-      name: 'Matcha',
-      description: 'First-harvest Uji ceremonial matcha whisked over crystal ice.',
-      category: 'drinks',
-      imageUrl: '/src/assets/images/product_matcha_latte_1793717985445.jpg',
-      available: true,
-      priceNimLuna: '4500000', // 45 NIM
-      priceUsdtMicro: '1350000', // 1.35 USDT
-    },
-    {
-      id: 'prod_croissant',
-      storeSlug: 'moonlight-cafe',
-      name: 'Butter Croissant',
-      description: 'Golden laminated French pastry baked fresh every evening.',
-      category: 'bakery',
-      imageUrl: '/src/assets/images/product_butter_croissant_1793717986872.jpg',
-      available: true,
-      priceNimLuna: '3000000', // 30 NIM
-      priceUsdtMicro: '800000', // 0.80 USDT
-    },
-    {
-      id: 'prod_jasmine_tea',
-      storeSlug: 'moonlight-cafe',
-      name: 'Iced Jasmine Tea',
-      description: 'Cold-steeped fragrant jasmine blossom green tea with fresh citrus.',
-      category: 'drinks',
-      imageUrl: '/src/assets/images/product_jasmine_tea_1793717986722.jpg',
-      available: true,
-      priceNimLuna: '3500000', // 35 NIM
-      priceUsdtMicro: '1050000', // 1.05 USDT
-    },
-    {
-      id: 'prod_sourdough',
-      storeSlug: 'moonlight-cafe',
-      name: 'Sourdough Loaf',
-      description: '36-hour naturally leavened country sourdough with blistered crust.',
-      category: 'food',
-      imageUrl: '/src/assets/images/product_sourdough_loaf_1793717990053.jpg',
-      available: true,
-      priceNimLuna: '5500000', // 55 NIM
-      priceUsdtMicro: '1650000', // 1.65 USDT
-    },
-    {
-      id: 'prod_matcha_parfait',
-      storeSlug: 'moonlight-cafe',
-      name: 'Matcha Tiramisu Parfait',
-      description: 'Velvet mascarpone cream layered with ceremonial matcha sponge and cocoa.',
-      category: 'dessert',
-      imageUrl: '/src/assets/images/product_matcha_latte_1793717985445.jpg',
-      available: true,
-      priceNimLuna: '4800000', // 48 NIM
-      priceUsdtMicro: '1450000', // 1.45 USDT
-    },
-    {
-      id: 'prod_tropical_fruit',
-      storeSlug: 'moonlight-cafe',
-      name: 'Tropical Mango & Citrus Bowl',
-      description: 'Chilled honey mango, sweet pomelo, and mint lime zest bowl.',
-      category: 'fruit',
-      imageUrl: '/src/assets/images/product_jasmine_tea_1793717986722.jpg',
-      available: true,
-      priceNimLuna: '3200000', // 32 NIM
-      priceUsdtMicro: '950000', // 0.95 USDT
-    },
-    {
-      id: 'prod_ceramic_mug',
-      storeSlug: 'moonlight-cafe',
-      name: 'Ceramic Mug',
-      description: 'Hand-thrown midnight indigo stoneware mug by local ceramicists.',
-      category: 'goods',
-      imageUrl: '/src/assets/images/product_ceramic_mug_1793717988583.jpg',
-      available: true,
-      priceNimLuna: '8500000', // 85 NIM
-      priceUsdtMicro: '2550000', // 2.55 USDT
-    },
-    {
-      id: 'prod_moonlight_tote',
-      storeSlug: 'moonlight-cafe',
-      name: 'Moonlight Reserve Beans (NIM Only)',
-      description: 'Single-origin anaerobic night harvest coffee beans — priced exclusively in NIM.',
-      category: 'goods',
-      imageUrl: '/src/assets/images/product_iced_latte_1793717983788.jpg',
-      available: true,
-      priceNimLuna: '12000000', // 120 NIM
-      priceUsdtMicro: null, // Intentionally NIM-only to demonstrate mixed-asset guard
-    },
-    // Second seller catalog (Aurora Night Roasters)
-    {
-      id: 'prod_aurora_v60',
-      storeSlug: 'aurora-roasters',
-      name: 'Gayo Wine Pour-Over',
-      description: 'Hand-brewed Sumatran filter coffee.',
-      category: 'drinks',
-      imageUrl: '/src/assets/images/product_iced_latte_1793717983788.jpg',
-      available: true,
-      priceNimLuna: '5000000',
-      priceUsdtMicro: '1500000',
-    },
-  ];
-
-  const now = Date.now();
-  const orders: OrderSnapshot[] = [
-    {
-      id: 'ord_seed_024',
-      publicToken: 'nt_ord_moonlight024',
-      orderNumber: '#024',
-      storeSlug: 'moonlight-cafe',
-      storeName: 'Moonlight Cafe',
-      asset: 'USDT',
-      network: 'polygon-mainnet',
-      snapshotRecipient: '0x129A40885B3fe74921c88492A09B6429371b9A40',
-      amountBase: '2000000',
-      amountFormatted: '2.00 USDT',
-      items: [
-        {
-          productId: 'prod_iced_latte',
-          name: 'Iced Latte',
-          quantity: 1,
-          unitPriceBase: '1200000',
-          lineTotalBase: '1200000',
-          imageUrl: '/src/assets/images/product_iced_latte_1793717983788.jpg',
-        },
-        {
-          productId: 'prod_croissant',
-          name: 'Butter Croissant',
-          quantity: 1,
-          unitPriceBase: '800000',
-          lineTotalBase: '800000',
-          imageUrl: '/src/assets/images/product_butter_croissant_1793717986872.jpg',
-        },
-      ],
-      fulfillmentMode: 'dine_in',
-      tableOrNote: 'Table 7',
-      paymentStatus: 'unpaid',
-      fulfillmentStatus: 'new',
-      createdAt: new Date(now - 5 * 60_000).toISOString(),
-      expiresAt: new Date(now + 45 * 60_000).toISOString(),
-    },
-    {
-      id: 'ord_seed_023',
-      publicToken: 'nt_ord_moonlight023',
-      orderNumber: '#023',
-      storeSlug: 'moonlight-cafe',
-      storeName: 'Moonlight Cafe',
-      asset: 'NIM',
-      network: 'nimiq-mainnet',
-      snapshotRecipient: moonlightNimiq,
-      amountBase: '11000000',
-      amountFormatted: '110 NIM',
-      items: [
-        {
-          productId: 'prod_iced_latte',
-          name: 'Iced Latte',
-          quantity: 2,
-          unitPriceBase: '4000000',
-          lineTotalBase: '8000000',
-          imageUrl: '/src/assets/images/product_iced_latte_1793717983788.jpg',
-        },
-        {
-          productId: 'prod_croissant',
-          name: 'Butter Croissant',
-          quantity: 1,
-          unitPriceBase: '3000000',
-          lineTotalBase: '3000000',
-          imageUrl: '/src/assets/images/product_butter_croissant_1793717986872.jpg',
-        },
-      ],
-      fulfillmentMode: 'pickup',
-      tableOrNote: 'Pickup counter',
-      paymentStatus: 'confirmed',
-      txHash: '0x94f8a21e77c092d1b6429371b9a40129a40885b3fe74921c88492a09b6420023',
-      verifiedAt: new Date(now - 12 * 60_000).toISOString(),
-      fulfillmentStatus: 'preparing',
-      createdAt: new Date(now - 15 * 60_000).toISOString(),
-      expiresAt: new Date(now + 15 * 60_000).toISOString(),
-    },
-    {
-      id: 'ord_seed_022',
-      publicToken: 'nt_ord_moonlight022',
-      orderNumber: '#022',
-      storeSlug: 'moonlight-cafe',
-      storeName: 'Moonlight Cafe',
-      asset: 'USDT',
-      network: 'polygon-mainnet',
-      snapshotRecipient: '0x129A40885B3fe74921c88492A09B6429371b9A40',
-      amountBase: '3900000',
-      amountFormatted: '3.90 USDT',
-      items: [
-        {
-          productId: 'prod_ceramic_mug',
-          name: 'Ceramic Mug',
-          quantity: 1,
-          unitPriceBase: '2550000',
-          lineTotalBase: '2550000',
-          imageUrl: '/src/assets/images/product_ceramic_mug_1793717988583.jpg',
-        },
-        {
-          productId: 'prod_matcha',
-          name: 'Matcha',
-          quantity: 1,
-          unitPriceBase: '1350000',
-          lineTotalBase: '1350000',
-          imageUrl: '/src/assets/images/product_matcha_latte_1793717985445.jpg',
-        },
-      ],
-      fulfillmentMode: 'pickup',
-      tableOrNote: 'Gift wrap please',
-      paymentStatus: 'confirmed',
-      txHash: '0x53c1b89021e77c092d1b6429371b9a40129a40885b3fe74921c88492a09b0022',
-      verifiedAt: new Date(now - 25 * 60_000).toISOString(),
-      fulfillmentStatus: 'completed',
-      createdAt: new Date(now - 30 * 60_000).toISOString(),
-      expiresAt: new Date(now).toISOString(),
-    },
-  ];
-
-  const auditLogs: AuditLogEntry[] = [
-    {
-      id: 'aud_1',
-      storeSlug: 'moonlight-cafe',
-      sellerEmail: 'merchant@moonlight.store',
-      action: 'WALLET_INITIALIZED',
-      details: 'Initial Nimiq and Polygon USDT recipient wallets configured and checksum-verified.',
-      newValue: `${moonlightNimiq} | 0x129A40885B3fe74921c88492A09B6429371b9A40`,
-      createdAt: '2026-11-01T18:00:00.000Z',
-    },
-  ];
-
-  return {
-    sellers: [moonlightSeller, auroraSeller],
-    stores,
-    products,
-    orders,
-    auditLogs,
-    claimedTransactions: {
-      '0x94f8a21e77c092d1b6429371b9a40129a40885b3fe74921c88492a09b6420023': 'ord_seed_023',
-      '0x53c1b89021e77c092d1b6429371b9a40129a40885b3fe74921c88492a09b0022': 'ord_seed_022',
-    },
-    orderSequenceByStore: {
-      'moonlight-cafe': 24,
-      'aurora-roasters': 1,
-    },
-  };
+export function emptyDatabase(): DatabaseState {
+  return { sellers: [], stores: [], products: [], orders: [], auditLogs: [], claimedTransactions: {}, orderSequenceByStore: {} };
 }
-
 function loadDatabase(): DatabaseState {
-  try {
-    if (fs.existsSync(DATA_FILE)) {
-      const raw = fs.readFileSync(DATA_FILE, 'utf-8');
-      const parsed = JSON.parse(raw) as DatabaseState;
-      const moonlightTestnetNimiq = createValidNimiqAddress('TESTNETM00NL1GHT0011223344556677');
-      const auroraTestnetNimiq = createValidNimiqAddress('TESTNETAUR0RA0001122334455667788');
-
-      // Backfill separate Testnet wallet profiles and default 'testnet' environment
-      for (const st of parsed.stores) {
-        if (!st.activeEnvironment) {
-          st.activeEnvironment = DEFAULT_NETWORK_ENV;
-        }
-        if (st.nimiqTestnetAddress === undefined) {
-          st.nimiqTestnetAddress =
-            st.slug === 'aurora-roasters' ? auroraTestnetNimiq : moonlightTestnetNimiq;
-        }
-        if (st.polygonAmoyAddress === undefined) {
-          st.polygonAmoyAddress =
-            st.slug === 'aurora-roasters'
-              ? '0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC'
-              : '0x71C95911E9a5D330f4D621842EC243EE1343292e';
-        }
-        if (st.polygonAmoyTestTokenContract === undefined) {
-          st.polygonAmoyTestTokenContract = process.env.POLYGON_AMOY_TEST_TOKEN_CONTRACT || null;
-        }
-      }
-
-      // Backfill environment & assetLabel on existing orders
-      for (const ord of parsed.orders) {
-        if (!ord.environment) {
-          ord.environment = getNetworkEnvironment(ord.network);
-        }
-        if (!ord.assetLabel) {
-          ord.assetLabel = getAssetLabelForEnvironment(ord.asset, ord.environment);
-        }
-        if (ord.snapshotChainId === undefined) {
-          ord.snapshotChainId = NETWORK_CONFIGS[ord.network]?.chainId ?? null;
-        }
-        if (ord.snapshotTokenContract === undefined) {
-          ord.snapshotTokenContract =
-            ord.network === 'polygon-mainnet' ? POLYGON_USDT_CONTRACT : null;
-        }
-      }
-
-      // Ensure at least one seeded Testnet order exists so Testnet Orders & Reports are immediately demonstrable
-      if (!parsed.orders.some((o) => getNetworkEnvironment(o.network) === 'testnet')) {
-        parsed.orders.unshift({
-          id: 'ord_seed_testnet_001',
-          publicToken: 'nt_ord_testnet001',
-          orderNumber: '#T01',
-          storeSlug: 'moonlight-cafe',
-          storeName: parsed.stores.find((s) => s.slug === 'moonlight-cafe')?.name || 'Moonlight Cafe',
-          environment: 'testnet',
-          asset: 'NIM',
-          assetLabel: 'NIM (TESTNET)',
-          network: 'nimiq-testnet',
-          snapshotChainId: null,
-          snapshotTokenContract: null,
-          snapshotRecipient: moonlightTestnetNimiq,
-          amountBase: '7000000',
-          amountFormatted: '70 NIM (TESTNET)',
-          items: [
-            {
-              productId: 'prod_iced_latte',
-              name: 'Iced Latte',
-              quantity: 1,
-              unitPriceBase: '4000000',
-              lineTotalBase: '4000000',
-              imageUrl: '/src/assets/images/product_iced_latte_1793717983788.jpg',
-            },
-            {
-              productId: 'prod_croissant',
-              name: 'Butter Croissant',
-              quantity: 1,
-              unitPriceBase: '3000000',
-              lineTotalBase: '3000000',
-              imageUrl: '/src/assets/images/product_butter_croissant_1793717986872.jpg',
-            },
-          ],
-          fulfillmentMode: 'dine_in',
-          tableOrNote: 'Testnet Sandbox · Table 3',
-          paymentStatus: 'unpaid',
-          fulfillmentStatus: 'new',
-          createdAt: new Date(Date.now() - 2 * 60_000).toISOString(),
-          expiresAt: new Date(Date.now() + 45 * 60_000).toISOString(),
-        });
-      }
-
-      // Backfill dessert and fruit items if loading from an older database snapshot
-      if (!parsed.products.some((p) => p.category === 'dessert')) {
-        parsed.products.push({
-          id: 'prod_matcha_parfait',
-          storeSlug: 'moonlight-cafe',
-          name: 'Matcha Tiramisu Parfait',
-          description: 'Velvet mascarpone cream layered with ceremonial matcha sponge and cocoa.',
-          category: 'dessert',
-          imageUrl: '/src/assets/images/product_matcha_latte_1793717985445.jpg',
-          available: true,
-          priceNimLuna: '4800000',
-          priceUsdtMicro: '1450000',
-        });
-      }
-      if (!parsed.products.some((p) => p.category === 'fruit')) {
-        parsed.products.push({
-          id: 'prod_tropical_fruit',
-          storeSlug: 'moonlight-cafe',
-          name: 'Tropical Mango & Citrus Bowl',
-          description: 'Chilled honey mango, sweet pomelo, and mint lime zest bowl.',
-          category: 'fruit',
-          imageUrl: '/src/assets/images/product_jasmine_tea_1793717986722.jpg',
-          available: true,
-          priceNimLuna: '3200000',
-          priceUsdtMicro: '950000',
-        });
-      }
-      return parsed;
-    }
-  } catch {
-    // Fallback to clean seed
-  }
-  const initial = createInitialSeedDatabase();
-  saveDatabase(initial);
-  return initial;
+  if (!fs.existsSync(DATA_FILE)) return emptyDatabase();
+  const state = JSON.parse(fs.readFileSync(DATA_FILE, 'utf8')) as DatabaseState;
+  if (!Array.isArray(state.sellers) || !Array.isArray(state.orders) || !Array.isArray(state.stores)) throw new Error('Invalid database; refusing to restore demo data.');
+  return state;
 }
-
 function saveDatabase(state: DatabaseState) {
+  if (requestState.getStore()) return; // The cloud transaction commits atomically before the response.
+  if (process.env.VERCEL) throw new Error('Cloud writes require a PostgreSQL transaction.');
+  fs.mkdirSync(path.dirname(DATA_FILE), { recursive: true, mode: 0o700 });
+  const tmp = `${DATA_FILE}.${process.pid}.tmp`;
   try {
-    fs.writeFileSync(DATA_FILE, JSON.stringify(state, null, 2), 'utf-8');
-  } catch {
-    // Non-fatal in read-only filesystems
+    fs.writeFileSync(tmp, JSON.stringify(state), { mode: 0o600 });
+    fs.renameSync(tmp, DATA_FILE);
+  } catch (error) {
+    try { fs.unlinkSync(tmp); } catch {}
+    throw new Error('Database write failed; operation is not durable.', { cause: error });
   }
 }
 
-const db = loadDatabase();
-const sessions = new Map<string, SessionRecord>();
+const db = scopedDatabase(process.env.VERCEL ? emptyDatabase() : loadDatabase());
+const sessions = scopedMap<string, SessionRecord>('sessions');
 
 // Progressive rate limiting / backoff state per IP/identifier
-const loginRateLimits = new Map<string, { failures: number; lockedUntilMs: number }>();
-const publicEndpointRateLimits = new Map<string, { count: number; windowStartMs: number }>();
+const loginRateLimits = scopedMap<string, { failures: number; lockedUntilMs: number }>('loginRateLimits');
+const publicEndpointRateLimits = scopedMap<string, { count: number; windowStartMs: number }>('publicEndpointRateLimits');
 
 function checkPublicRateLimit(ip: string, maxPerMinute = 90): boolean {
   const now = Date.now();
@@ -640,9 +202,7 @@ function createSignedSessionToken(sellerId: string, storeSlug: string): string {
   const nonce = crypto.randomBytes(24).toString('hex');
   const payload = `nt_sess_${nonce}`;
   const secret = process.env.SESSION_SECRET;
-  if (!secret) {
-    return payload;
-  }
+  if (!secret || secret.length < 64) throw new Error('SESSION_SECRET must contain at least 64 characters.');
   const sig = crypto
     .createHmac('sha256', secret)
     .update(`${payload}:${sellerId}:${storeSlug}`)
@@ -652,9 +212,7 @@ function createSignedSessionToken(sellerId: string, storeSlug: string): string {
 
 function verifySessionSignature(session: SessionRecord): boolean {
   const secret = process.env.SESSION_SECRET;
-  if (!secret || !session.token.includes('.')) {
-    return true;
-  }
+  if (!secret || secret.length < 64 || !session.token.includes('.')) return false;
   const [payload, sig] = session.token.split('.');
   if (!payload || !sig) return false;
   const expectedSig = crypto
@@ -672,7 +230,7 @@ interface AuthedRequest extends Request {
   sellerSession?: SessionRecord;
 }
 
-function requireSellerAuth(req: AuthedRequest, res: Response, next: NextFunction) {
+function requireSession(req: AuthedRequest, res: Response, next: NextFunction) {
   const authHeader = req.headers.authorization || '';
   const token = authHeader.startsWith('Bearer ') ? authHeader.slice(7).trim() : '';
   if (!token) {
@@ -689,236 +247,78 @@ function requireSellerAuth(req: AuthedRequest, res: Response, next: NextFunction
   next();
 }
 
-/**
- * Verifies Cloudflare Turnstile token on the server when TURNSTILE_SECRET_KEY is configured.
- * Reports configuration status honestly without weakening security.
- */
-async function verifyTurnstileToken(token: string | undefined, remoteIp: string): Promise<{
-  passed: boolean;
-  mode: 'cloudflare_verified' | 'unconfigured_notice';
-  error?: string;
-}> {
-  const secret = process.env.TURNSTILE_SECRET_KEY;
-  if (!secret) {
-    // Honest reporting when Turnstile secret is not yet configured in environment
-    if (!token || token.trim().length < 4) {
-      return {
-        passed: false,
-        mode: 'unconfigured_notice',
-        error: 'CAPTCHA verification challenge must be completed.',
-      };
-    }
-    return { passed: true, mode: 'unconfigured_notice' };
-  }
+function requireSellerAuth(req: AuthedRequest, res: Response, next: NextFunction) {
+  requireSession(req, res, () => {
+    const seller = db.sellers.find(s => s.id === req.sellerSession?.sellerId);
+    if (!seller?.totpEnabled || !req.sellerSession?.mfaVerified) { res.status(403).json({ error: 'Complete authenticator enrollment first.' }); return; }
+    next();
+  });
+}
+function enrollmentDetails(seller: SellerAccount) {
+  const bytes = Buffer.from(seller.totpSecretHex, 'hex');
+  const alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567'; let bits = ''; for (const b of bytes) bits += b.toString(2).padStart(8,'0');
+  let secret = ''; for (let i=0;i<bits.length;i+=5) secret += alphabet[parseInt(bits.slice(i,i+5).padEnd(5,'0'),2)];
+  return { secret, uri: `otpauth://totp/NimTera:${encodeURIComponent(seller.email)}?secret=${secret}&issuer=NimTera&algorithm=SHA1&digits=6&period=30` };
+}
 
+const verifyingOrders = new Set<string>();
+const rpcUrls: Record<string, string> = { 'nimiq-testnet': ALLOWLISTED_NIMIQ_TESTNET_RPC, 'polygon-amoy': ALLOWLISTED_POLYGON_AMOY_RPC };
+export async function verifyOrderPayment(order: OrderSnapshot, hash: string) {
+  if (order.paymentStatus === 'confirmed') return;
+  if (verifyingOrders.has(order.id)) throw new Error('Verification already running; retry the read later.');
+  verifyingOrders.add(order.id);
   try {
-    const formData = new URLSearchParams();
-    formData.append('secret', secret);
-    formData.append('response', token || '');
-    formData.append('remoteip', remoteIp);
-
-    const resp = await fetch('https://challenges.cloudflare.com/turnstile/v0/siteverify', {
-      method: 'POST',
-      body: formData,
-    });
-    const data = (await resp.json()) as { success?: boolean };
-    if (!data.success) {
-      return {
-        passed: false,
-        mode: 'cloudflare_verified',
-        error: 'Cloudflare Turnstile CAPTCHA verification failed.',
-      };
+    order.paymentVerificationAttemptedAt = new Date().toISOString();
+    const evidence = await readPaymentEvidence(order, hash, rpcUrls);
+    const key = `${order.network}:${hash.toLowerCase()}`;
+    const claimed = new Map(Object.entries(db.claimedTransactions));
+    // Domain helper keys must also be namespaced by network.
+    const outcome = reconcilePaymentVerification({ order, evidence: { ...evidence, txHash: key }, claimedTxOrderMap: claimed });
+    if (outcome.shouldBindTxHash) db.claimedTransactions[key] = order.id;
+    if (['pending','rpc_timeout'].includes(evidence.executionStatus)) {
+      order.txHash = hash;
+    } else if (outcome.paymentStatus === 'confirmed') {
+      order.txHash = hash;
+      order.verifiedAt = new Date().toISOString();
     }
-    return { passed: true, mode: 'cloudflare_verified' };
-  } catch {
-    return {
-      passed: false,
-      mode: 'cloudflare_verified',
-      error: 'Unable to reach Cloudflare Turnstile verification server.',
-    };
+    order.paymentStatus = outcome.paymentStatus;
+    order.paymentReviewReason = outcome.reviewReason;
+    saveDatabase(db);
+  } finally { verifyingOrders.delete(order.id); }
+}
+export async function reconcilePendingPayments() {
+  for (const order of db.orders.filter(o => o.environment === 'testnet' && o.txHash && o.paymentStatus === 'pending').slice(0, 50)) {
+    try { await verifyOrderPayment(order, order.txHash!); } catch { /* pending reads retry on the next bounded tick */ }
   }
 }
 
-/**
- * Queries allowlisted Polygon Mainnet (Chain ID 137) or Polygon Amoy Testnet (Chain ID 80002)
- * RPC for transaction receipt and parses ERC-20 Transfer log.
- * Never falls back from Amoy to Mainnet or vice versa.
- */
-async function verifyPolygonTransactionOnRpc(
-  txHash: string,
-  expectedRecipient: string,
-  network: 'polygon-amoy' | 'polygon-mainnet',
-  expectedTokenContract: string | null
-): Promise<OnChainTxEvidence> {
-  const rpcUrl =
-    network === 'polygon-amoy' ? ALLOWLISTED_POLYGON_AMOY_RPC : ALLOWLISTED_POLYGON_MAINNET_RPC;
-  const targetContract =
-    network === 'polygon-amoy'
-      ? expectedTokenContract
-      : expectedTokenContract || POLYGON_USDT_CONTRACT;
-
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 6000);
-  try {
-    const resp = await fetch(rpcUrl, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      signal: controller.signal,
-      body: JSON.stringify({
-        jsonrpc: '2.0',
-        id: 1,
-        method: 'eth_getTransactionReceipt',
-        params: [txHash],
-      }),
-    });
-    clearTimeout(timeout);
-    const json = (await resp.json()) as {
-      result?: {
-        status?: string;
-        logs?: Array<{
-          address: string;
-          topics: string[];
-          data: string;
-        }>;
-      } | null;
-    };
-
-    if (!json.result) {
-      return {
-        txHash,
-        network,
-        executionStatus: 'pending',
-        recipient: expectedRecipient,
-        amountBase: 0n,
-      };
-    }
-
-    if (json.result.status !== '0x1') {
-      return {
-        txHash,
-        network,
-        executionStatus: 'failed',
-        recipient: expectedRecipient,
-        amountBase: 0n,
-      };
-    }
-
-    // Find ERC-20 Transfer(address,address,uint256) event from the order's locked token contract
-    const logs = json.result.logs || [];
-    if (targetContract) {
-      for (const log of logs) {
-        if (
-          log.address?.toLowerCase() === targetContract.toLowerCase() &&
-          log.topics?.[0]?.toLowerCase() === ERC20_TRANSFER_TOPIC.toLowerCase() &&
-          log.topics.length >= 3
-        ) {
-          const toTopic = log.topics[2];
-          const toAddress = `0x${toTopic.slice(-40)}`;
-          const amountBig = BigInt(log.data || '0x0');
-          return {
-            txHash,
-            network,
-            executionStatus: 'confirmed',
-            recipient: toAddress,
-            amountBase: amountBig,
-            tokenContract: log.address,
-          };
-        }
-      }
-    }
-
-    return {
-      txHash,
-      network,
-      executionStatus: 'confirmed',
-      recipient: expectedRecipient,
-      amountBase: 0n,
-      tokenContract: '0x0000000000000000000000000000000000000000',
-    };
-  } catch {
-    clearTimeout(timeout);
-    return {
-      txHash,
-      network,
-      executionStatus: 'rpc_timeout',
-      recipient: expectedRecipient,
-      amountBase: 0n,
-    };
-  }
-}
-
-/**
- * Queries allowlisted Nimiq Testnet (`test-albatross`) or Nimiq Mainnet (`main-albatross`)
- * RPC for transaction details. Strictly isolated per network.
- */
-async function verifyNimiqTransactionOnRpc(
-  txHash: string,
-  expectedRecipient: string,
-  network: 'nimiq-testnet' | 'nimiq-mainnet'
-): Promise<OnChainTxEvidence> {
-  const rpcUrl =
-    network === 'nimiq-testnet' ? ALLOWLISTED_NIMIQ_TESTNET_RPC : ALLOWLISTED_NIMIQ_MAINNET_RPC;
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 6000);
-  try {
-    const resp = await fetch(rpcUrl, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      signal: controller.signal,
-      body: JSON.stringify({
-        jsonrpc: '2.0',
-        id: 1,
-        method: 'getTransactionByHash',
-        params: [txHash],
-      }),
-    });
-    clearTimeout(timeout);
-    const json = (await resp.json()) as {
-      result?: {
-        to?: string;
-        toAddress?: string;
-        value?: number | string;
-        confirmations?: number;
-        executionResult?: boolean;
-      } | null;
-    };
-
-    if (!json.result) {
-      return {
-        txHash,
-        network,
-        executionStatus: 'pending',
-        recipient: expectedRecipient,
-        amountBase: 0n,
-      };
-    }
-
-    const confirmations = json.result.confirmations ?? 1;
-    const recipient = json.result.toAddress || json.result.to || '';
-    const valueBig = BigInt(json.result.value ?? 0);
-
-    return {
-      txHash,
-      network,
-      executionStatus: confirmations > 0 ? 'confirmed' : 'pending',
-      recipient,
-      amountBase: valueBig,
-    };
-  } catch {
-    clearTimeout(timeout);
-    return {
-      txHash,
-      network,
-      executionStatus: 'rpc_timeout',
-      recipient: expectedRecipient,
-      amountBase: 0n,
-    };
-  }
-}
-
-async function startServer() {
+export async function createApp(options: { apiOnly?: boolean } = {}) {
   const app = express();
+  app.disable('x-powered-by');
+  if (process.env.VERCEL) app.set('trust proxy', 1);
+  const asyncRoute = (fn: (req: Request, res: Response, next: NextFunction) => unknown) =>
+    (req: Request, res: Response, next: NextFunction) => Promise.resolve().then(() => fn(req, res, next)).catch(next);
   app.use(express.json({ limit: '256kb' }));
+
+  app.use('/api', (req, res, next) => {
+    res.setHeader('Cache-Control', 'no-store');
+    if (['POST', 'PUT', 'PATCH'].includes(req.method)) {
+      const b = req.body;
+      if (!b || typeof b !== 'object' || Array.isArray(b)) { res.status(400).json({ error: 'JSON object required.' }); return; }
+      if (b.environment !== undefined && !['testnet','mainnet'].includes(b.environment)) { res.status(400).json({ error: 'Unknown environment.' }); return; }
+      for (const k of ['defaultLocale','voiceLocale']) if (b[k] !== undefined && !['en','id','zh-CN','vi','ms','ru'].includes(b[k])) { res.status(400).json({ error: 'Unsupported language.' }); return; }
+      if ('sandboxSimulation' in b) { res.status(400).json({ error: 'Client-supplied payment evidence is not accepted.' }); return; }
+      const strings = ['email','password','currentPassword','totpCode','storeName','storeSlug','name','description','category','imageUrl','priceNimLuna','priceUsdtMicro','txHash','asset','environment','fulfillmentMode','fulfillmentStatus','tableOrNote','manualPaymentNote','defaultLocale','voiceLocale','sender','signature'];
+      for (const k of strings) if (b[k] !== undefined && (typeof b[k] !== 'string' || b[k].length > (k === 'imageUrl' ? 2048 : 4096))) { res.status(400).json({ error: `Invalid ${k}.` }); return; }
+      for (const k of ['nimiqAddress','polygonAddress','nimiqTestnetAddress','polygonAmoyAddress','polygonAmoyTestTokenContract']) if (b[k] !== undefined && b[k] !== null && (typeof b[k] !== 'string' || b[k].length > 128)) { res.status(400).json({ error: `Invalid ${k}.` }); return; }
+      for (const k of ['supportsPickup','supportsDelivery','supportsDineIn','available']) if (b[k] !== undefined && typeof b[k] !== 'boolean') { res.status(400).json({ error: `Invalid ${k}.` }); return; }
+      for (const k of ['priceNimLuna','priceUsdtMicro']) if (b[k] && (!/^[0-9]{1,30}$/.test(b[k]) || BigInt(b[k]) > BigInt(Number.MAX_SAFE_INTEGER))) { res.status(400).json({ error: 'Invalid price.' }); return; }
+      if (b.items !== undefined && (!Array.isArray(b.items) || b.items.length > 100 || b.items.some((x: any) => !x || typeof x.productId !== 'string' || !Number.isSafeInteger(x.quantity) || x.quantity < 1 || x.quantity > 99))) { res.status(400).json({ error: 'Invalid cart items.' }); return; }
+      if (b.deliveryInfo !== undefined && (!b.deliveryInfo || typeof b.deliveryInfo !== 'object' || Array.isArray(b.deliveryInfo) || ['recipientName','phone','address'].some(k => typeof b.deliveryInfo[k] !== 'string' || b.deliveryInfo[k].length > 500))) { res.status(400).json({ error: 'Invalid delivery information.' }); return; }
+      if ((req.path.startsWith('/auth/') || req.path.endsWith('/verify') || req.path.endsWith('/intent') || req.path.endsWith('/wallets')) && !checkPublicRateLimit(req.ip || 'local', 60)) { res.status(429).json({ error: 'Too many attempts. Please wait.' }); return; }
+    }
+    next();
+  });
 
   // Basic security headers
   app.use((_req, res, next) => {
@@ -927,56 +327,30 @@ async function startServer() {
     next();
   });
 
+  app.get('/api/health', (_req, res) => {
+    const configured = {
+      database: true,
+      sessionSecret: Boolean(process.env.SESSION_SECRET && process.env.SESSION_SECRET.length >= 64),
+    };
+    const ready = configured.sessionSecret;
+    res.status(ready ? 200 : 503).json({ ready, configured, databaseReachable: true, testnetOnly: true, storage: 'local-single-server', nativeDeviceValidated: false });
+  });
+
   // 1. Honest Auth & Security Setup Status Endpoint
   app.get('/api/auth/security-status', (_req, res) => {
-    const turnstileConfigured = Boolean(process.env.TURNSTILE_SECRET_KEY);
-    const demoSeller = db.sellers.find((s) => s.storeSlug === 'moonlight-cafe');
-    res.json({
-      passwordMinLength: 15,
-      totp2faRequired: true,
-      rateLimitActive: true,
-      turnstileConfigured,
-      turnstileSiteKey: process.env.VITE_TURNSTILE_SITE_KEY || null,
-      domainCanonical: process.env.APP_URL || 'https://nimtera.store',
-      demoTotpCurrentCode: demoSeller ? generateTotpCode(demoSeller.totpSecretHex) : null,
-      demoAccounts: [
-        {
-          email: 'merchant@moonlight.store',
-          storeSlug: 'moonlight-cafe',
-          storeName: 'Moonlight Cafe',
-        },
-        {
-          email: 'seller@aurora.store',
-          storeSlug: 'aurora-roasters',
-          storeName: 'Aurora Night Roasters',
-        },
-      ],
-    });
+    res.json({ passwordMinLength: 15, totp2faRequired: true, rateLimitActive: true,
+      captchaRequired: false,
+      domainCanonical: process.env.APP_URL || 'https://nimtera.store', testnetOnly: true,
+      emailVerificationConfigured: false });
   });
 
-  // Helper endpoint to get current TOTP code for either seeded store during evaluation
-  app.get('/api/auth/totp-helper/:email', (req, res) => {
-    const email = String(req.params.email || '').toLowerCase();
-    const seller = db.sellers.find((s) => s.email.toLowerCase() === email);
-    if (!seller) {
-      res.status(404).json({ error: 'Account not found' });
-      return;
-    }
-    res.json({
-      email: seller.email,
-      totpCode: generateTotpCode(seller.totpSecretHex),
-      validForSeconds: 30 - (Math.floor(Date.now() / 1000) % 30),
-    });
-  });
-
-  // 2. Seller Login with 15+ char password policy, progressive backoff, CAPTCHA, 2FA TOTP, and Restaurant Name input
-  app.post('/api/auth/login', async (req, res) => {
+  // 2. Seller Login with 15+ char password policy, progressive backoff, 2FA TOTP, and Restaurant Name input
+  app.post('/api/auth/login', asyncRoute(async (req, res) => {
     const ip = req.ip || 'local';
-    const { email, password, totpCode, captchaToken, storeName } = req.body as {
+    const { email, password, totpCode, storeName } = req.body as {
       email?: string;
       password?: string;
       totpCode?: string;
-      captchaToken?: string;
       storeName?: string;
     };
 
@@ -991,11 +365,6 @@ async function startServer() {
       return;
     }
 
-    const captchaResult = await verifyTurnstileToken(captchaToken, ip);
-    if (!captchaResult.passed) {
-      res.status(400).json({ error: captchaResult.error });
-      return;
-    }
 
     const passCheck = validateSellerPassword(password || '');
     if (!passCheck.valid) {
@@ -1016,6 +385,8 @@ async function startServer() {
     }
 
     if (seller.totpEnabled && !verifyTotpCode(seller.totpSecretHex, totpCode || '')) {
+      const failures = (limitState?.failures || 0) + 1;
+      loginRateLimits.set(rateKey, { failures, lockedUntilMs: failures >= 3 ? Date.now() + Math.min(60000, 2 ** Math.min(failures, 10) * 1000) : 0 });
       res.status(401).json({
         error: 'Invalid 6-digit 2FA Authenticator code.',
       });
@@ -1027,6 +398,7 @@ async function startServer() {
     const sessionToken = createSignedSessionToken(seller.id, seller.storeSlug);
     const session: SessionRecord = {
       token: sessionToken,
+      mfaVerified: seller.totpEnabled,
       sellerId: seller.id,
       storeSlug: seller.storeSlug,
       email: seller.email,
@@ -1052,9 +424,9 @@ async function startServer() {
         emailVerified: seller.emailVerified,
       },
       store,
-      captchaMode: captchaResult.mode,
+      enrollment: seller.totpEnabled ? undefined : enrollmentDetails(seller),
     });
-  });
+  }));
 
   // Update Seller Restaurant / Store Name directly
   app.patch('/api/seller/store-name', requireSellerAuth, (req: AuthedRequest, res) => {
@@ -1077,7 +449,7 @@ async function startServer() {
   });
 
   // 3. Seller Onboarding / New Store Registration
-  app.post('/api/auth/register', async (req, res) => {
+  app.post('/api/auth/register', asyncRoute(async (req, res) => {
     const ip = req.ip || 'local';
     if (!checkPublicRateLimit(ip, 20)) {
       res.status(429).json({ error: 'Rate limit exceeded. Try again in a minute.' });
@@ -1094,7 +466,6 @@ async function startServer() {
       supportsPickup,
       supportsDelivery,
       defaultLocale,
-      captchaToken,
     } = req.body as {
       email?: string;
       password?: string;
@@ -1105,14 +476,8 @@ async function startServer() {
       supportsPickup?: boolean;
       supportsDelivery?: boolean;
       defaultLocale?: SupportedLocale;
-      captchaToken?: string;
     };
 
-    const captchaResult = await verifyTurnstileToken(captchaToken, ip);
-    if (!captchaResult.passed) {
-      res.status(400).json({ error: captchaResult.error });
-      return;
-    }
 
     const cleanEmail = (email || '').trim().toLowerCase();
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cleanEmail)) {
@@ -1182,8 +547,8 @@ async function startServer() {
       passwordSalt: salt,
       passwordHash: hash,
       totpSecretHex,
-      totpEnabled: true,
-      emailVerified: true,
+      totpEnabled: false,
+      emailVerified: false,
       storeSlug: cleanSlug,
       createdAt: nowIso,
     };
@@ -1193,8 +558,8 @@ async function startServer() {
       name: (storeName || cleanSlug).trim().slice(0, 60),
       sellerId,
       activeEnvironment: DEFAULT_NETWORK_ENV,
-      nimiqAddress: normalizedNimiq,
-      polygonAddress: normalizedPoly,
+      nimiqAddress: null,
+      polygonAddress: null,
       nimiqTestnetAddress: normalizedNimiq,
       polygonAmoyAddress: normalizedPoly,
       polygonAmoyTestTokenContract: process.env.POLYGON_AMOY_TEST_TOKEN_CONTRACT || null,
@@ -1224,6 +589,7 @@ async function startServer() {
     const sessionToken = createSignedSessionToken(sellerId, cleanSlug);
     sessions.set(sessionToken, {
       token: sessionToken,
+      mfaVerified: false,
       sellerId,
       storeSlug: cleanSlug,
       email: cleanEmail,
@@ -1239,11 +605,28 @@ async function startServer() {
         totpEnabled: newSeller.totpEnabled,
       },
       store: newStore,
-      totpSetupCode: generateTotpCode(totpSecretHex),
+      enrollment: enrollmentDetails(newSeller),
     });
+  }));
+
+  app.get('/api/auth/mfa/enrollment', requireSession, (req: AuthedRequest, res) => {
+    const seller = db.sellers.find(s => s.id === req.sellerSession?.sellerId);
+    if (!seller || seller.totpEnabled) { res.status(409).json({ error: 'Enrollment is not available.' }); return; }
+    res.setHeader('Cache-Control', 'no-store');
+    res.json({ enrollment: enrollmentDetails(seller) });
   });
 
-  app.post('/api/auth/logout', requireSellerAuth, (req: AuthedRequest, res) => {
+  app.post('/api/auth/mfa/confirm', requireSession, (req: AuthedRequest, res) => {
+    const seller = db.sellers.find(s => s.id === req.sellerSession?.sellerId);
+    if (!seller || seller.totpEnabled || !verifyTotpCode(seller.totpSecretHex, req.body.totpCode || '')) { res.status(400).json({ error: 'Invalid enrollment code or enrollment already complete.' }); return; }
+    seller.totpEnabled = true;
+    req.sellerSession!.mfaVerified = true;
+    for (const [token, session] of sessions) if (session.sellerId === seller.id && !session.mfaVerified) sessions.delete(token);
+    saveDatabase(db);
+    res.json({ ok: true });
+  });
+
+  app.post('/api/auth/logout', requireSession, (req: AuthedRequest, res) => {
     if (req.sellerSession) {
       sessions.delete(req.sellerSession.token);
     }
@@ -1324,6 +707,8 @@ async function startServer() {
         ? environment
         : store.activeEnvironment || DEFAULT_NETWORK_ENV;
 
+    if (orderEnv !== 'testnet' || store.activeEnvironment !== 'testnet' || orderEnv !== store.activeEnvironment) { res.status(403).json({ error: 'Testnet beta: mainnet checkout is disabled.' }); return; }
+
     // Select recipient strictly from the matching environment profile
     const snapshotRecipient =
       orderEnv === 'testnet'
@@ -1336,11 +721,15 @@ async function startServer() {
 
     if (!snapshotRecipient) {
       res.status(400).json({
-        error: `Toko ini belum mengaktifkan alamat wallet penerima ${
+        error: `This shop has not configured a recipient wallet on ${
           orderEnv === 'testnet' ? 'TESTNET' : 'MAINNET'
-        } untuk aset ${getAssetLabelForEnvironment(asset, orderEnv)}. Tidak ada fallback otomatis antar jaringan.`,
+        } for ${getAssetLabelForEnvironment(asset, orderEnv)}. Automatic cross-network fallback is not allowed.`,
       });
       return;
+    }
+
+    if (asset === 'USDT' && (!ALLOWLISTED_POLYGON_AMOY_RPC || !validateAmoyTestTokenContract(store.polygonAmoyTestTokenContract || '').valid)) {
+      res.status(503).json({ error: 'Amoy checkout is unavailable until the operator configures a working Amoy RPC and the seller sets an approved 6-decimal test-token contract. No mainnet fallback.' }); return;
     }
 
     const storeCatalog = db.products.filter((p) => p.storeSlug === slug);
@@ -1358,6 +747,7 @@ async function startServer() {
     }
 
     const mode: FulfillmentMode = fulfillmentMode || 'pickup';
+    if (!['pickup','delivery','dine_in'].includes(mode) || (mode === 'pickup' && !store.supportsPickup) || (mode === 'dine_in' && !store.supportsDineIn)) { res.status(400).json({ error: 'Fulfillment mode unavailable.' }); return; }
     let cleanDelivery: OrderSnapshot['deliveryInfo'] | undefined;
     if (mode === 'delivery') {
       if (!store.supportsDelivery) {
@@ -1426,125 +816,55 @@ async function startServer() {
   });
 
   // 6. Public Order Lookup by Strong Random Public Token (Never exposes full order table or delivery PII)
-  app.get('/api/public/orders/:publicToken', (req, res) => {
+  app.get('/api/public/orders/:publicToken', asyncRoute(async (req, res) => {
     const token = String(req.params.publicToken || '').trim();
     const order = db.orders.find((o) => o.publicToken === token);
     if (!order) {
       res.status(404).json({ error: 'Order not found or invalid public token.' });
       return;
     }
+    if (order.paymentStatus === 'pending' && order.txHash && Date.now() - Date.parse(order.paymentVerificationAttemptedAt || '1970-01-01') >= 15000) await verifyOrderPayment(order, order.txHash);
     res.json({ order: sanitizeOrderForPublic(order) });
-  });
+  }));
 
-  // 7. Submit & Verify Transaction on Network (Atomic txHash uniqueness + Strict Network Isolation)
-  app.post('/api/public/orders/:publicToken/verify', async (req, res) => {
-    const token = String(req.params.publicToken || '').trim();
-    const order = db.orders.find((o) => o.publicToken === token);
-    if (!order) {
-      res.status(404).json({ error: 'Order not found.' });
-      return;
-    }
-
-    const { txHash, sandboxSimulation } = req.body as {
-      txHash?: string;
-      /**
-       * Clearly documented sandbox verification mode for automated tests & 3-device demo
-       * when not broadcasting a live on-chain transaction. Never claimed as native E2E payment.
-       */
-      sandboxSimulation?: {
-        executionStatus: 'pending' | 'confirmed' | 'failed' | 'rpc_timeout';
-        amountBase?: string;
-        network?: NetworkId;
-        tokenContract?: string;
-        recipient?: string;
-      };
-    };
-
-    const cleanTxHash = (txHash || order.txHash || '').trim();
-    if (!cleanTxHash || cleanTxHash.length < 10) {
-      res.status(400).json({ error: 'Valid transaction hash is required for verification.' });
-      return;
-    }
-
-    // For Polygon Amoy TEST TOKEN, if no sandbox simulation is used and no Amoy token contract is configured on the order,
-    // keep order in needs_review and explain clearly.
-    let evidence: OnChainTxEvidence;
-    if (sandboxSimulation) {
-      const defaultContractForSim =
-        order.network === 'polygon-mainnet'
-          ? POLYGON_USDT_CONTRACT
-          : order.network === 'polygon-amoy'
-          ? order.snapshotTokenContract || '0x41E94Eb019C0762f9Bfcf9Fb1E58725BfB0e7582'
-          : undefined;
-
-      // Ensure order has a valid snapshotTokenContract when running sandbox simulation on polygon-amoy
-      if (order.network === 'polygon-amoy' && !order.snapshotTokenContract) {
-        order.snapshotTokenContract = '0x41E94Eb019C0762f9Bfcf9Fb1E58725BfB0e7582';
-      }
-
-      evidence = {
-        txHash: cleanTxHash,
-        network: sandboxSimulation.network || order.network,
-        executionStatus: sandboxSimulation.executionStatus,
-        recipient: sandboxSimulation.recipient || order.snapshotRecipient,
-        amountBase: BigInt(sandboxSimulation.amountBase ?? order.amountBase),
-        tokenContract: sandboxSimulation.tokenContract ?? defaultContractForSim,
-      };
-    } else if (order.network === 'polygon-mainnet' || order.network === 'polygon-amoy') {
-      evidence = await verifyPolygonTransactionOnRpc(
-        cleanTxHash,
-        order.snapshotRecipient,
-        order.network,
-        order.snapshotTokenContract ?? null
-      );
-    } else {
-      evidence = await verifyNimiqTransactionOnRpc(
-        cleanTxHash,
-        order.snapshotRecipient,
-        order.network
-      );
-    }
-
-    const claimedMap = new Map<string, string>(Object.entries(db.claimedTransactions));
-    const outcome = reconcilePaymentVerification({
-      order,
-      evidence,
-      claimedTxOrderMap: claimedMap,
-    });
-
-    if (outcome.shouldBindTxHash) {
-      const lowerHash = cleanTxHash.toLowerCase();
-      db.claimedTransactions[lowerHash] = order.id;
-      order.txHash = cleanTxHash;
-    }
-
-    order.paymentStatus = outcome.paymentStatus;
-    order.paymentReviewReason = outcome.reviewReason;
-    if (outcome.paymentStatus === 'confirmed' && !order.verifiedAt) {
-      order.verifiedAt = new Date().toISOString();
-    }
-
+  app.post('/api/public/orders/:publicToken/intent', asyncRoute(async (req, res) => {
+    const order = db.orders.find(o => o.publicToken === req.params.publicToken);
+    if (!order || order.network !== 'polygon-amoy' || order.environment !== 'testnet' || order.paymentStatus !== 'unpaid' || Date.now() > Date.parse(order.expiresAt)) { res.status(409).json({ error: 'Invoice cannot accept a new payment intent.' }); return; }
+    const { sender, signature } = req.body;
+    if (!validatePolygonAddress(sender || '').valid || !/^0x[0-9a-f]{130}$/i.test(signature || '')) { res.status(400).json({ error: 'Signed payment intent required.' }); return; }
+    let recovered: string;
+    try { recovered = verifyMessage(paymentIntentMessage(order), signature); } catch { res.status(400).json({ error: 'Invalid signature.' }); return; }
+    if (recovered.toLowerCase() !== sender.toLowerCase() || (order.payerAddress && order.payerAddress.toLowerCase() !== recovered.toLowerCase())) { res.status(409).json({ error: 'Invoice payer mismatch.' }); return; }
+    order.payerAddress = recovered;
     saveDatabase(db);
-    res.json({
-      order: sanitizeOrderForPublic(order),
-      reconciliation: outcome,
-      verificationSource: sandboxSimulation
-        ? 'sandbox_test_simulation'
-        : `${order.network}_rpc`,
-    });
-  });
+    res.json({ ok: true });
+  }));
+
+  // Browser supplies only a hash hint; all payment evidence is read by the server.
+  app.post('/api/public/orders/:publicToken/verify', asyncRoute(async (req, res) => {
+    const order = db.orders.find(o => o.publicToken === req.params.publicToken);
+    if (!order) { res.status(404).json({ error: 'Order not found.' }); return; }
+    if (order.environment !== 'testnet') { res.status(403).json({ error: 'Mainnet disabled in this testnet beta.' }); return; }
+    const hash = (req.body.txHash || '').trim();
+    const valid = order.asset === 'NIM' ? /^[0-9a-f]{64}$/i.test(hash) : /^0x[0-9a-f]{64}$/i.test(hash);
+    if (!valid) { res.status(400).json({ error: 'Invalid transaction hash for this network.' }); return; }
+    if (order.paymentStatus !== 'confirmed') await verifyOrderPayment(order, hash);
+    res.json({ order: sanitizeOrderForPublic(order), verificationSource: `${order.network}_rpc` });
+  }));
 
   // ============================================================================
   // SELLER PROTECTED ENDPOINTS (Enforces store isolation + Testnet/Mainnet separation)
   // ============================================================================
 
-  app.get('/api/seller/dashboard', requireSellerAuth, (req: AuthedRequest, res) => {
+  app.get('/api/seller/dashboard', requireSellerAuth, asyncRoute(async (req: AuthedRequest, res) => {
     const storeSlug = req.sellerSession!.storeSlug;
     const store = db.stores.find((s) => s.slug === storeSlug);
     if (!store) {
       res.status(404).json({ error: 'Store not found.' });
       return;
     }
+    const pendingCheck = db.orders.find(o => o.storeSlug === storeSlug && o.paymentStatus === 'pending' && o.txHash && Date.now() - Date.parse(o.paymentVerificationAttemptedAt || '1970-01-01') >= 15000);
+    if (pendingCheck?.txHash) await verifyOrderPayment(pendingCheck, pendingCheck.txHash);
     const products = db.products.filter((p) => p.storeSlug === storeSlug);
     const orders = db.orders.filter((o) => o.storeSlug === storeSlug);
     const auditLogs = db.auditLogs.filter((a) => a.storeSlug === storeSlug);
@@ -1608,10 +928,11 @@ async function startServer() {
       },
       networkConfigs: NETWORK_CONFIGS,
     });
-  });
+  }));
 
   // Switch Store Active Environment ('testnet' vs 'mainnet')
   app.patch('/api/seller/network-environment', requireSellerAuth, (req: AuthedRequest, res) => {
+    if (req.body.environment !== 'testnet') { res.status(403).json({ error: 'Mainnet is locked during the testnet beta.' }); return; }
     const storeSlug = req.sellerSession!.storeSlug;
     const store = db.stores.find((s) => s.slug === storeSlug);
     if (!store) {
@@ -1647,85 +968,8 @@ async function startServer() {
   });
 
   // Pre-Production Mainnet Configuration Readiness Check
-  app.get('/api/seller/mainnet-readiness', requireSellerAuth, async (req: AuthedRequest, res) => {
-    const storeSlug = req.sellerSession!.storeSlug;
-    const store = db.stores.find((s) => s.slug === storeSlug);
-    if (!store) {
-      res.status(404).json({ error: 'Store not found.' });
-      return;
-    }
-
-    const nimValid = store.nimiqAddress ? validateNimiqAddress(store.nimiqAddress).valid : false;
-    const polyValid = store.polygonAddress
-      ? validatePolygonAddress(store.polygonAddress).valid
-      : false;
-    const walletsDistinctFromTestnet =
-      store.nimiqAddress !== store.nimiqTestnetAddress &&
-      store.polygonAddress?.toLowerCase() !== store.polygonAmoyAddress?.toLowerCase();
-
-    // Check Polygon Mainnet RPC Chain ID (must be 0x89 / 137)
-    let polygonMainnetRpcOk = false;
-    let polygonMainnetChainHex: string | null = null;
-    try {
-      const controller = new AbortController();
-      const t = setTimeout(() => controller.abort(), 3500);
-      const r = await fetch(ALLOWLISTED_POLYGON_MAINNET_RPC, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        signal: controller.signal,
-        body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'eth_chainId', params: [] }),
-      });
-      clearTimeout(t);
-      const j = (await r.json()) as { result?: string };
-      polygonMainnetChainHex = j.result || null;
-      polygonMainnetRpcOk = parseInt(j.result || '0x0', 16) === POLYGON_MAINNET_CHAIN_ID;
-    } catch {
-      polygonMainnetRpcOk = false;
-    }
-
-    const checks = [
-      {
-        id: 'nim_mainnet_wallet',
-        label: 'Nimiq Mainnet Recipient Wallet (MOD-97-10 verified)',
-        passed: nimValid,
-        detail: store.nimiqAddress || 'Not configured',
-      },
-      {
-        id: 'polygon_mainnet_wallet',
-        label: 'Polygon Mainnet USDT Recipient Wallet (Chain ID 137)',
-        passed: polyValid,
-        detail: store.polygonAddress || 'Not configured',
-      },
-      {
-        id: 'testnet_mainnet_wallet_separation',
-        label: 'Mainnet & Testnet Wallet Profiles Separated',
-        passed: walletsDistinctFromTestnet,
-        detail: walletsDistinctFromTestnet
-          ? 'Mainnet and Testnet recipient addresses are distinct.'
-          : 'Mainnet and Testnet addresses are identical — use separate wallets for strict isolation.',
-      },
-      {
-        id: 'polygon_mainnet_usdt_contract',
-        label: 'Official Polygon Mainnet USDT Contract (6 Decimals)',
-        passed: POLYGON_USDT_CONTRACT === '0xc2132D05D31c914a87C6611C10748AEb04B58e8F',
-        detail: `${POLYGON_USDT_CONTRACT} (Chain ID ${POLYGON_MAINNET_CHAIN_ID})`,
-      },
-      {
-        id: 'polygon_mainnet_rpc_probe',
-        label: 'Polygon Mainnet RPC Reachability & Chain ID 137 Check',
-        passed: polygonMainnetRpcOk,
-        detail: polygonMainnetRpcOk
-          ? `Connected (${ALLOWLISTED_POLYGON_MAINNET_RPC}, Chain ID ${polygonMainnetChainHex})`
-          : `RPC unreachable or timed out (${ALLOWLISTED_POLYGON_MAINNET_RPC})`,
-      },
-    ];
-
-    res.json({
-      readyForMainnetSmallValueTest: checks.every((c) => c.passed),
-      checks,
-      warning:
-        'Keberhasilan di Testnet (Nimiq Testnet / Polygon Amoy) TIDAK menjamin jalur USDT Mainnet, gas fee POL, atau relayer di Nimiq Pay Mainnet identik. Selalu jalankan uji nominal kecil di Mainnet dengan persetujuan eksplisit sebelum transaksi produksi.',
-    });
+  app.get('/api/seller/mainnet-readiness', requireSellerAuth, (_req, res) => {
+    res.json({ readyForMainnet: false, checks: { testnetOnly: true }, warning: 'Mainnet disabled. Complete testnet and production persistence review first.' });
   });
 
   // Seller Product Management (Create / Update)
@@ -1763,7 +1007,7 @@ async function startServer() {
           : 'drinks',
       imageUrl:
         (imageUrl || '').trim() ||
-        '/src/assets/images/product_iced_latte_1793717983788.jpg',
+        '/products/product_iced_latte_1793717983788.jpg',
       available: available ?? true,
       priceNimLuna: validNim,
       priceUsdtMicro: validUsdt,
@@ -1784,36 +1028,39 @@ async function startServer() {
       return;
     }
 
+    const originalProduct = product;
+    const draft = { ...product };
     const { name, description, category, imageUrl, available, priceNimLuna, priceUsdtMicro } =
       req.body as Partial<ProductRecord>;
 
-    if (name !== undefined) product.name = name.trim().slice(0, 80) || product.name;
-    if (description !== undefined) product.description = description.trim().slice(0, 240);
+    if (name !== undefined) draft.name = name.trim().slice(0, 80) || draft.name;
+    if (description !== undefined) draft.description = description.trim().slice(0, 240);
     if (category && ['drinks', 'bakery', 'food', 'dessert', 'fruit', 'goods'].includes(category)) {
-      product.category = category;
+      draft.category = category;
     }
     if (imageUrl !== undefined && imageUrl.trim()) {
-      product.imageUrl = imageUrl.trim();
+      draft.imageUrl = imageUrl.trim();
     }
-    if (available !== undefined) product.available = Boolean(available);
+    if (available !== undefined) draft.available = Boolean(available);
     if (priceNimLuna !== undefined) {
-      product.priceNimLuna =
+      draft.priceNimLuna =
         priceNimLuna && BigInt(priceNimLuna) > 0n ? BigInt(priceNimLuna).toString() : null;
     }
     if (priceUsdtMicro !== undefined) {
-      product.priceUsdtMicro =
+      draft.priceUsdtMicro =
         priceUsdtMicro && BigInt(priceUsdtMicro) > 0n ? BigInt(priceUsdtMicro).toString() : null;
     }
 
-    if (!product.priceNimLuna && !product.priceUsdtMicro) {
+    if (!draft.priceNimLuna && !draft.priceUsdtMicro) {
       res.status(400).json({
         error: 'At least one asset price (NIM or USDT) must remain active.',
       });
       return;
     }
 
+    Object.assign(originalProduct, draft);
     saveDatabase(db);
-    res.json({ product });
+    res.json({ product: originalProduct });
   });
 
   app.delete('/api/seller/products/:id', requireSellerAuth, (req: AuthedRequest, res) => {
@@ -2029,7 +1276,16 @@ async function startServer() {
     });
   });
 
+  app.use('/api', (_req, res) => { res.status(404).json({ error: 'API route not found.' }); });
+  app.use((error: any, _req: Request, res: Response, _next: NextFunction) => {
+    if (res.headersSent) return;
+    const badInput = error instanceof SyntaxError || error instanceof TypeError || error instanceof RangeError || error?.type === 'entity.too.large';
+    res.status(badInput ? 400 : 503).json({ error: badInput ? 'Invalid request.' : 'Operation unavailable; no success has been confirmed.' });
+  });
+
+  if (options.apiOnly || process.env.NODE_ENV === 'test') return app;
   if (process.env.NODE_ENV !== 'production') {
+    const { createServer: createViteServer } = await import('vite');
     const vite = await createViteServer({
       server: { middlewareMode: true },
       appType: 'spa',
@@ -2043,10 +1299,9 @@ async function startServer() {
     });
   }
 
-  app.listen(PORT, '0.0.0.0', () => {
-    console.log(`NimTera server listening on http://0.0.0.0:${PORT}`);
-  });
+  return app;
 }
+
 
 function sanitizeOrderForPublic(order: OrderSnapshot): Omit<OrderSnapshot, 'deliveryInfo'> & {
   hasDeliveryAddress: boolean;
@@ -2058,4 +1313,10 @@ function sanitizeOrderForPublic(order: OrderSnapshot): Omit<OrderSnapshot, 'deli
   };
 }
 
-startServer();
+if (process.env.NODE_ENV !== 'test' && !process.env.VERCEL) {
+  if (!process.env.SESSION_SECRET || process.env.SESSION_SECRET.length < 64) throw new Error('Set a random SESSION_SECRET of at least 64 characters.');
+  createApp().then(app => {
+    const timer = setInterval(() => { void reconcilePendingPayments(); }, 8000); timer.unref();
+    app.listen(PORT, '0.0.0.0', () => console.log(`NimTera TESTNET on port ${PORT}`));
+  });
+}

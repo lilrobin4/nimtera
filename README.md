@@ -1,57 +1,77 @@
-# NimTera — Your shop. Every payment.
+# NimTera
 
-**Canonical Production Domain:** `https://nimtera.store`
+A Night Market-style catalog, cashier and order-management app. Independent project; not an official Nimiq product.
 
-NimTera is an independent point-of-sale (cashier) and order management web application for in-person and online shops with native payment checkout in **Nimiq Pay**. NimTera is not an official Nimiq product and is a completely separate project from StakeSafe.
+## Current scope
 
----
+**Testnet beta only.** NIM TestAlbatross and, after configuration, a six-decimal ERC-20 TEST TOKEN on Polygon Amoy (80002). Mainnet checkout and native sends are hard-disabled. No conversion, swaps, POL acceptance, custody or automatic refunds.
 
-## 1. Supported Mainnet Networks & Assets (v1)
+The full application source now includes a Vercel API adapter and transactional PostgreSQL persistence. This is **not a claim that database provisioning, cloud-runtime validation or real-device payments are complete**. `/api/health` and the real application homepage report missing service configuration instead of substituting a demo.
 
-1. **NIM on Nimiq Mainnet**
-   - Base unit arithmetic: `1 NIM = 100,000 Luna` (`5` decimals) stored and calculated using `BigInt`.
-   - Address format: `NQ` + 2 check digits + 32 base-32 characters validated via IBAN **MOD-97-10** checksum.
-   - Native Pay integration: Uses `@nimiq/mini-app-sdk` / `window.nimiq` (`sendBasicTransactionWithData` / `sendBasicTransaction`) inside Nimiq Pay WebView, and standardized `nimiq:<address>?amount=<NIM>&message=<memo>` URIs.
+## Local development
 
-2. **USDT on Polygon Mainnet (Chain ID 137)**
-   - Verified Token Contract: `0xc2132D05D31c914a87C6611C10748AEb04B58e8F` (`6` decimals, `1 USDT = 1,000,000 micro-USDT`).
-   - Native Pay integration: Uses injected EIP-1193 provider (`window.ethereum`), enforces Chain ID `137` (`0x89`) wrong-chain guard, and encodes direct ERC-20 `transfer(address,uint256)` calldata (`0xa9059cbb...`) without requesting token allowances.
-   - On-chain verification: Inspects transaction receipt (`status === "0x1"`) and verifies the `Transfer(address,address,uint256)` event topic (`0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef`) emitted specifically by `0xc2132D05D31c914a87C6611C10748AEb04B58e8F`.
+Use Node.js 22.12+.
 
-### Out of Scope in v1 (By Design)
-- No automatic NIM ↔ USDT swaps or exchange-rate conversions.
-- No POL payments.
-- No custodial escrow, server-side wallets, or automatic refunds.
-- Never requests seed phrases or private keys.
-
----
-
-## 2. Application Routes
-
-### Customer (No Login Required)
-- `/s/:storeSlug` — Storefront, menu catalog, cart, and asset selector (e.g., `/s/moonlight-cafe` and `/s/aurora-roasters`).
-- `/s/:storeSlug/order/:publicToken` — Order checkout, static QR code, Nimiq Pay launch button, and live payment/fulfillment status (e.g., `/s/moonlight-cafe/order/nt_ord_moonlight024`).
-
-### Seller (Authenticated + 2FA)
-- `/seller/login` — Merchant login (15+ character password, breached-password rejection, Turnstile CAPTCHA check, progressive backoff, and 6-digit RFC 6238 TOTP 2FA).
-- `/seller/setup` — One-time store & recipient wallet onboarding.
-- `/seller/counter` — In-person Cashier POS.
-- `/seller/orders` — Live order queue & on-chain verification console.
-- `/seller/products` — Product catalog & manual dual-asset pricing manager.
-- `/seller/reports` — Strictly separated NIM & Polygon USDT volume reports, CSV export, and Audit Log.
-- `/seller/settings` — Re-authenticated + 2FA wallet updates and 6-language audio/voice announcement settings.
-
----
-
-## 3. Running Locally & Testing
-
-```bash
-# Run unit tests (monetary math, address checksums, cart compatibility, payment reconciliation)
+```sh
+npm ci
+cp .env.example .env
+# Generate a random SESSION_SECRET (at least 64 characters),
+# CAPTCHA is intentionally not used. Password, TOTP and rate limits remain enabled.
 npm test
-
-# Start full-stack Express + Vite server on port 3000
+npm run build
 npm run dev
+```
 
-# Production build
+The standalone local server uses private `.data/store.json` (one process only). Open `/seller/setup`, create your own account, scan the private authenticator QR, and confirm its code. Add products and share `/s/your-shop-slug`. No seeded accounts or public TOTP helper exist. CAPTCHA was removed from registration and login at the owner’s request.
+
+Initial wallet addresses are testnet profiles. Wallet changes require password and TOTP and affect only future invoices. Invoice recipient, asset, amount, token and network snapshots stay locked.
+
+## Full application on Vercel
+
+`vercel.json` builds the **real application** with `npm run build`, serves `dist`, and routes `/api/*` to `api/index.ts`. Do not build `build:ui` for a functioning application.
+
+Required private project environment variables:
+
+- `DATABASE_URL` (or `POSTGRES_URL`): a dedicated pooled PostgreSQL TESTNET connection URL with TLS (`sslmode=verify-full` recommended). Never use another project's production data.
+- `SESSION_SECRET`: random secret of at least 64 characters; do not rotate casually because existing sessions become invalid.
+- `APP_URL`: the actual chosen application origin; not an unverified custom-domain claim.
+- `NIMIQ_TESTNET_RPC_URL`: a working testnet node; the example provides a read-tested default, not an availability guarantee.
+- Optional Amoy: `POLYGON_AMOY_RPC_URL` and `POLYGON_AMOY_TEST_TOKEN_CONTRACT`. Without these, Amoy checkout is unavailable, not routed to mainnet.
+
+For Supabase hosts, the backend bundles the public official production CA and verifies both its certificate chain and hostname. URL SSL options cannot override this verified configuration.
+
+No temporary filesystem fallback is permitted for cloud account creation. CAPTCHA is not required or contacted. Keep secrets in Vercel Environment Variables, not source, screenshots, chat or public files. Cloud health returns 503 until database connectivity and session security are present. Presence checks are not proof that credentials or payment flows work end-to-end.
+
+### Persistence and concurrency
+
+The bounded testnet implementation stores a versioned JSONB state in PostgreSQL (`migrations/001-testnet-state.sql`). Requests use row-level database transactions, AsyncLocalStorage-isolated request state, and shared persisted sessions/rate limits. HTTP success is released **only after COMMIT**. Invalid business requests cannot leave partial product/order changes; authentication failure counters remain durable. Errors roll back and return 503, not fabricated success. Missing or invalid cloud DB configuration never falls back to local JSON.
+
+This is intentionally a serialized-write beta design with capacity/time limits, **not a high-volume production database schema**. Requests including RPC checks can contend for the testnet row; lock timeouts return retryable 503. Normalize tables and optimize read/write paths before high traffic. Managed database provisioning, network PostgreSQL concurrency and cloud deployment behavior still require validation against the chosen service.
+
+### Payment reconciliation
+
+Customers provide only hash hints. The server independently checks RPC evidence, network, recipient, invoice binding, amount and execution. Confirmed receipts are terminal; hashes bind only after successful verification. NIM uses the full invoice memo. Amoy binds a signed payer intent before send and checks matching transfer events, canonical receipt block and five confirmations.
+
+A standalone server has an eight-second pending checker. On Vercel there is no permanent interval: checkout status reads and seller dashboard reads reconcile due pending hashes, with a persisted cooldown. If no client or seller is viewing, no continuous worker runs; an external authenticated scheduler is needed for unattended reconciliation. No background-process promise is implied.
+
+Native sends require matching known host/chain metadata, official SDK support and Web Locks. Unknown outcomes are journaled locally to prevent blind replay. Do not clear a journal to resend an uncertain payment; inspect wallet history and verify its hash instead.
+
+## Validation
+
+```sh
+npm run lint
+npm test
 npm run build
 ```
+
+Tests include isolated HTTP auth/enrollment/catalog/order flows, cross-app-instance sessions, PGlite PostgreSQL-engine transaction/rollback/commit-failure tests, request-context isolation, and mock RPC/native host tests. PGlite tests are not proof of network PostgreSQL multi-connection behavior. Mocks are not real-device or chain-broadcast tests.
+
+Still required before operational readiness: actual cloud DB setup and full browser validation, native Nimiq Pay testnet availability, real testnet payments, approved token decimal verification, six-language UI/audio completeness, account recovery, unattended scheduler choice, load/security review, HTTPS/domain approval. No mainnet transaction or custom-domain deployment is authorized by this README.
+
+## UI-only preview (separate maintenance build)
+
+`npm run build:ui` remains available for an explicitly labeled static sample catalog. It is not the full app. An older deployed UI-only snapshot does not update merely because local source changed. Confirm the exact Vercel deployment before treating a link as the full application.
+
+## Historical secrets
+
+Old demo credentials/database material existed in Git history. Current deletion does not erase history. Treat old credentials as compromised, never restore the demo DB, rotate anything reused and keep private backups outside the repository. Git history has not been rewritten.

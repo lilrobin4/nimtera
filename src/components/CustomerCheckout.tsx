@@ -1,3 +1,4 @@
+import { uiText, uiChoice, categoryCopy } from '../lib/uiLocale';
 import React, { useEffect, useState } from 'react';
 import QRCode from 'qrcode';
 import {
@@ -11,6 +12,7 @@ import {
   FlaskConical,
 } from 'lucide-react';
 import {
+  paymentIntentMessage,
   buildNimiqPaymentDetails,
   buildPolygonUsdtTransferDetails,
   formatAssetAmount,
@@ -55,15 +57,14 @@ export const CustomerCheckout: React.FC<CustomerCheckoutProps> = ({
   const [txHashInput, setTxHashInput] = useState('');
   const [verifying, setVerifying] = useState(false);
   const [walletNotice, setWalletNotice] = useState<string | null>(null);
-  const [showTestHarness, setShowTestHarness] = useState(true);
   const [mainnetExplicitConsent, setMainnetExplicitConsent] = useState(false);
   const [detectedEvmChainId, setDetectedEvmChainId] = useState<number | null>(null);
 
   const capabilities = detectNimiqPayCapabilities();
 
-  const fetchOrder = async () => {
+  const fetchOrder = async (signal?: AbortSignal) => {
     try {
-      const resp = await fetch(`/api/public/orders/${encodeURIComponent(publicToken)}`);
+      const resp = await fetch(`/api/public/orders/${encodeURIComponent(publicToken)}`, { signal });
       const data = await resp.json();
       if (!resp.ok) {
         setError(data.error || 'Order not found.');
@@ -76,16 +77,20 @@ export const CustomerCheckout: React.FC<CustomerCheckoutProps> = ({
       }
       setLoading(false);
     } catch {
+      if (signal?.aborted) return;
       setError('Unable to load checkout details.');
       setLoading(false);
     }
   };
 
   useEffect(() => {
-    fetchOrder();
+    const controller = new AbortController();
+    let stopped = false;
+    let timer: ReturnType<typeof setTimeout>;
+    const poll = async () => { await fetchOrder(controller.signal); if (!stopped) timer = setTimeout(poll, 5000); };
+    void poll();
     inspectConnectedEvmChainId().then((res) => setDetectedEvmChainId(res.chainId));
-    const interval = setInterval(fetchOrder, 3500);
-    return () => clearInterval(interval);
+    return () => { stopped = true; clearTimeout(timer); controller.abort(); };
   }, [publicToken]);
 
   // Generate crisp static QR code whenever order or qrMode changes, preserving network identity
@@ -102,7 +107,7 @@ export const CustomerCheckout: React.FC<CustomerCheckoutProps> = ({
     const checkoutUrl = `${origin}/s/${order.storeSlug}/order/${order.publicToken}?net=${order.network}&env=${envParam}`;
 
     let payload = checkoutUrl;
-    if (qrMode === 'wallet_uri') {
+    if (qrMode === 'wallet_uri' && order.asset === 'NIM') {
       if (order.asset === 'NIM') {
         const nimDetails = buildNimiqPaymentDetails({
           recipient: order.snapshotRecipient,
@@ -117,12 +122,11 @@ export const CustomerCheckout: React.FC<CustomerCheckoutProps> = ({
           recipient: order.snapshotRecipient,
           amountMicro: order.amountBase,
           network: order.network === 'polygon-amoy' ? 'polygon-amoy' : 'polygon-mainnet',
-          tokenContract: order.snapshotTokenContract,
+          tokenContractOverride: order.snapshotTokenContract,
         });
-        if (!polyDetails.valid) {
+        if (!polyDetails.tokenContract) {
           setQrUriError(
-            polyDetails.error ||
-              'Kontrak TEST TOKEN Amoy belum dikonfigurasi. Menampilkan QR tautan pesanan dengan identitas jaringan terkunci.'
+              uiText(locale, "Kontrak TEST TOKEN Amoy belum dikonfigurasi. Menampilkan QR tautan pesanan dengan identitas jaringan terkunci.")
           );
           payload = checkoutUrl;
         } else {
@@ -154,6 +158,8 @@ export const CustomerCheckout: React.FC<CustomerCheckoutProps> = ({
 
   const handlePayInNimiqPay = async () => {
     if (!order) return;
+    if (order.environment !== 'testnet' || ['confirmed','failed'].includes(order.paymentStatus) || Date.now() > Date.parse(order.expiresAt)) { setWalletNotice('Invoice cannot request a new payment. Mainnet is disabled during the testnet beta.'); return; }
+    if (verifying) return;
     setWalletNotice(null);
 
     const isTestnetOrder =
@@ -163,7 +169,7 @@ export const CustomerCheckout: React.FC<CustomerCheckoutProps> = ({
 
     if (!isTestnetOrder && !mainnetExplicitConsent) {
       setWalletNotice(
-        'PERINGATAN MAINNET: Pesanan ini berada di jaringan MAINNET (Dana Asli). Centang persetujuan eksplisit di atas tombol sebelum mengirim transaksi dana asli.'
+        uiText(locale, "PERINGATAN MAINNET: Pesanan ini berada di jaringan MAINNET (Dana Asli). Centang persetujuan eksplisit di atas tombol sebelum mengirim transaksi dana asli.")
       );
       return;
     }
@@ -190,6 +196,11 @@ export const CustomerCheckout: React.FC<CustomerCheckoutProps> = ({
         amountMicro: order.amountBase,
         network: order.network === 'polygon-amoy' ? 'polygon-amoy' : 'polygon-mainnet',
         tokenContract: order.snapshotTokenContract,
+        intentMessage: paymentIntentMessage(order),
+        authorizeIntent: async (sender, signature) => {
+          const r = await fetch(`/api/public/orders/${encodeURIComponent(order.publicToken)}/intent`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ sender, signature }) });
+          if (!r.ok) throw new Error((await r.json()).error || 'Payment intent rejected');
+        },
       });
       if (!res.ok) {
         setWalletNotice(res.error || 'Could not initiate Polygon token transaction.');
@@ -204,19 +215,12 @@ export const CustomerCheckout: React.FC<CustomerCheckoutProps> = ({
 
   const submitVerification = async (
     hashOverride?: string,
-    sandboxSimulation?: {
-      executionStatus: 'pending' | 'confirmed' | 'failed' | 'rpc_timeout';
-      amountBase?: string;
-      network?: NetworkId;
-      chainId?: number;
-      tokenContract?: string;
-      recipient?: string;
-    }
+
   ) => {
     if (!order) return;
     const hashToUse = (hashOverride ?? txHashInput).trim();
     if (!hashToUse) {
-      setWalletNotice('Please enter or generate a transaction hash to verify.');
+      setWalletNotice('Please enter a transaction hash returned by your wallet.');
       return;
     }
     setVerifying(true);
@@ -229,7 +233,6 @@ export const CustomerCheckout: React.FC<CustomerCheckoutProps> = ({
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             txHash: hashToUse,
-            sandboxSimulation,
           }),
         }
       );
@@ -356,24 +359,26 @@ export const CustomerCheckout: React.FC<CustomerCheckoutProps> = ({
             </span>
             <span className="font-semibold">
               {isTestnetOrder
-                ? `Jaringan Terkunci: ${netSpec.label} · Aset: ${
+                ? uiChoice(locale, `Jaringan Terkunci: ${netSpec.networkDisplayName} · Aset: ${
                     order.assetLabel || netSpec.assetDisplayLabel
-                  } (Bukan Dana Asli / Bukan USDT Mainnet). Tidak ada fallback otomatis ke Mainnet.`
-                : `Jaringan Terkunci: ${netSpec.label} · Aset: ${netSpec.assetDisplayLabel} (Transaksi Dana Asli — Tidak dapat dibatalkan otomatis).`}
+                  } (Bukan Dana Asli / Bukan USDT Mainnet). Tidak ada fallback otomatis ke Mainnet.`, `Locked network: ${netSpec.networkDisplayName} · Asset: ${
+                    order.assetLabel || netSpec.assetDisplayLabel
+                  } (Test funds, not Mainnet USDT). No automatic fallback to Mainnet.`)
+                : uiChoice(locale, `Jaringan Terkunci: ${netSpec.networkDisplayName} · Aset: ${netSpec.assetDisplayLabel} (Transaksi Dana Asli — Tidak dapat dibatalkan otomatis).`, `Locked network: ${netSpec.networkDisplayName} · Asset: ${netSpec.assetDisplayLabel} (Real-money transaction — cannot be reversed automatically).`)}
             </span>
           </div>
           <a
-            href={netSpec.explorerUrl}
+            href={netSpec.explorerBaseUrl}
             target="_blank"
             rel="noreferrer"
             className="font-mono text-[11px] underline font-semibold shrink-0"
           >
-            Explorer: {netSpec.explorerName} ↗
+            Explorer: {netSpec.networkDisplayName} ↗
           </a>
         </div>
       </header>
 
-      {/* Main Centered Checkout Card matching checkout_16947649.png */}
+      {/* Main Centered Checkout Card */}
       <main className="relative z-10 my-auto py-1 flex flex-col items-center">
         <div className="w-full max-w-[440px] bg-[#131C2E] border border-slate-700/80 rounded-3xl p-4 sm:p-5 shadow-2xl space-y-3.5">
           {/* Card Top Header: Store Identity + NimTera Logo */}
@@ -398,13 +403,13 @@ export const CustomerCheckout: React.FC<CustomerCheckoutProps> = ({
             <BrandLogo variant="champagne" size="sm" onClick={() => onBackToStore(order.storeSlug)} />
           </div>
 
-          {/* Slate-Blue Checkout Header Banner matching checkout_16947649.png */}
+          {/* Slate-Blue Checkout Header Banner */}
           <div className="bg-[#7C9CB5] text-[#0B101C] rounded-2xl py-2.5 px-4 text-center">
             <h1 className="text-lg font-bold tracking-tight text-[#F8FAFC]">
               {t.checkoutTitle} {isTestnetOrder ? '(TESTNET)' : '(MAINNET)'}
             </h1>
             <p className="text-xs font-semibold text-[#FDE68A] tabular-nums">
-              {t.orderNumberLabel} {order.orderNumber} · {netSpec.shortBadge}
+              {t.orderNumberLabel} {order.orderNumber} · {netSpec.networkDisplayName}
             </p>
           </div>
 
@@ -456,7 +461,7 @@ export const CustomerCheckout: React.FC<CustomerCheckoutProps> = ({
               </span>
             </div>
             <div className="flex items-center justify-between text-xs text-slate-400">
-              <span>Jaringan Terkunci (Locked)</span>
+              <span>{' '}{uiText(locale, "Jaringan Terkunci (Locked)")}{' '}</span>
               <span
                 data-testid="checkout-locked-network"
                 className="font-semibold text-[#2DD4BF] font-mono"
@@ -481,7 +486,7 @@ export const CustomerCheckout: React.FC<CustomerCheckoutProps> = ({
                   {order.network === 'polygon-amoy'
                     ? order.snapshotTokenContract
                       ? `${order.snapshotTokenContract.slice(0, 8)}...${order.snapshotTokenContract.slice(-6)}`
-                      : 'Belum dikonfigurasi (Kontrak 0xc213...8e8F dilarang)'
+                      : uiText(locale, "Belum dikonfigurasi (Kontrak 0xc213...8e8F dilarang)")
                     : `${POLYGON_USDT_CONTRACT.slice(0, 8)}...${POLYGON_USDT_CONTRACT.slice(-6)}`}
                 </span>
               </div>
@@ -491,13 +496,9 @@ export const CustomerCheckout: React.FC<CustomerCheckoutProps> = ({
                 data-testid="checkout-amoy-contract-guard"
                 className="p-2.5 rounded-xl bg-amber-100 border border-amber-400 text-amber-950 text-[11px] leading-relaxed"
               >
-                <strong>Pengaman Kontrak Polygon Amoy (Chain ID 80002):</strong> Kontrak{' '}
-                <code>TEST TOKEN</code> belum dikonfigurasi pada toko ini. Sesuai aturan keamanan,
-                NimTera <strong>menolak penggunaan alamat kontrak USDT Mainnet</strong> (
-                <code>0xc2132D05D31c914a87C6611C10748AEb04B58e8F</code>) di Amoy. Mintalah
-                persetujuan sebelum melakukan deployment kontrak token uji baru, atau gunakan fitur
-                simulasi rekonsiliasi sandbox di bawah.
-              </div>
+                <strong>{' '}{uiText(locale, "Pengaman Kontrak Polygon Amoy (Chain ID 80002):")}{' '}</strong>{' '}{uiText(locale, "Kontrak")}{' '}{' '}
+                <code>TEST TOKEN</code>{' '}{uiText(locale, "belum dikonfigurasi pada toko ini. Sesuai aturan keamanan, NimTera")}{' '}<strong>{' '}{uiText(locale, "menolak penggunaan alamat kontrak USDT Mainnet")}{' '}</strong> (
+                <code>0xc2132D05D31c914a87C6611C10748AEb04B58e8F</code>{' '}{uiText(locale, ") di Amoy. Mintalah persetujuan sebelum melakukan deployment kontrak token uji baru, atau gunakan fitur verifikasi hash transaksi nyata pada jaringan testnet yang sesuai.")}{' '}</div>
             )}
           </div>
 
@@ -578,8 +579,8 @@ export const CustomerCheckout: React.FC<CustomerCheckoutProps> = ({
 
               <p className="text-[11px] text-slate-400 text-center max-w-xs leading-snug">
                 {qrMode === 'checkout_link'
-                  ? `${t.qrCheckoutExplanation} (Mempertahankan parameter jaringan ?net=${order.network}&env=${orderEnvironment})`
-                  : `Direct Wallet URI QR (${order.network}): Mengenkode penerima, nominal presisi, dan jaringan pesanan.`}
+                  ? uiChoice(locale, `${t.qrCheckoutExplanation} (Mempertahankan parameter jaringan ?net=${order.network}&env=${orderEnvironment})`, `${t.qrCheckoutExplanation} (Preserves network parameters ?net=${order.network}&env=${orderEnvironment})`)
+                  : uiChoice(locale, `Direct Wallet URI QR (${order.network}): Mengenkode penerima, nominal presisi, dan jaringan pesanan.`, `Direct Wallet URI QR (${order.network}): Encodes the recipient, exact amount and invoice network.`)}
               </p>
             </div>
 
@@ -596,14 +597,13 @@ export const CustomerCheckout: React.FC<CustomerCheckoutProps> = ({
                   className="mt-0.5 accent-emerald-800"
                 />
                 <span>
-                  <strong>Izin Eksplisit Transaksi Mainnet:</strong> Saya memahami pesanan ini
-                  berada di <strong>{netSpec.label}</strong> dan menyetujui pengiriman{' '}
+                  <strong>Izin Eksplisit Transaksi Mainnet:</strong>{' '}{uiText(locale, "Saya memahami pesanan ini berada di")}{' '}<strong>{netSpec.networkDisplayName}</strong>{' '}{uiText(locale, "dan menyetujui pengiriman")}{' '}{' '}
                   <strong>dana asli ({order.amountFormatted})</strong> langsung ke wallet merchant.
                 </span>
               </label>
             )}
 
-            {/* Action Buttons matching checkout_16947649.png */}
+            {/* Action Buttons */}
             <div className="space-y-2.5 pt-1">
               <button
                 type="button"
@@ -621,7 +621,7 @@ export const CustomerCheckout: React.FC<CustomerCheckoutProps> = ({
                 <button
                   type="button"
                   onClick={() =>
-                    setQrMode(qrMode === 'checkout_link' ? 'wallet_uri' : 'checkout_link')
+                    setQrMode(order.asset === 'USDT' ? 'checkout_link' : qrMode === 'checkout_link' ? 'wallet_uri' : 'checkout_link')
                   }
                   className="py-2 px-3 rounded-xl bg-[#11192A] border border-slate-700/80 hover:border-slate-600 text-xs font-medium text-slate-300 transition-colors cursor-pointer"
                 >
@@ -695,7 +695,7 @@ export const CustomerCheckout: React.FC<CustomerCheckoutProps> = ({
                   <span>Diagnostik Host Nimiq Pay & Ketersediaan Testnet</span>
                 </span>
                 <span className="font-mono text-[10px] px-2 py-0.5 rounded bg-[#FAF6F0] border border-[#E2D9C8]">
-                  EVM Chain: {detectedEvmChainId ?? 'Tidak terdeteksi'}
+                  EVM Chain: {detectedEvmChainId ?? uiText(locale, "Tidak terdeteksi")}
                 </span>
               </div>
               <p className="text-slate-500 leading-relaxed">
@@ -709,7 +709,7 @@ export const CustomerCheckout: React.FC<CustomerCheckoutProps> = ({
                 htmlFor="tx-hash-verify-input"
                 className="block text-[11px] font-medium text-slate-400"
               >
-                {t.txHashLabel} (Diverifikasi ketat hanya di RPC <strong className="font-mono">{order.network}</strong>)
+                {t.txHashLabel}{' '}{uiText(locale, "(Diverifikasi ketat hanya di RPC")}{' '}<strong className="font-mono">{order.network}</strong>)
               </label>
               <div className="flex gap-2">
                 <input
@@ -731,108 +731,9 @@ export const CustomerCheckout: React.FC<CustomerCheckoutProps> = ({
               </div>
             </div>
 
-            {/* Sandbox / 2-Device Automated Verification Simulator (Explicitly labeled NOT native E2E) */}
-            <div className="pt-1">
-              <button
-                type="button"
-                onClick={() => setShowTestHarness(!showTestHarness)}
-                className="w-full flex items-center justify-between text-[11px] text-slate-400 hover:text-slate-200 py-1 cursor-pointer"
-              >
-                <span className="inline-flex items-center gap-1.5 font-semibold">
-                  <FlaskConical className="w-3.5 h-3.5 text-[#DFC496]" />
-                  <span>Simulasi Rekonsiliasi Otomatis (Sandbox — Bukan Native E2E)</span>
-                </span>
-                <span>{showTestHarness ? '▴' : '▾'}</span>
-              </button>
-
-              {showTestHarness && (
-                <div className="mt-2 p-3 rounded-xl bg-[#0B101C] border border-slate-800 space-y-2 text-[11px]">
-                  <p className="text-slate-500 leading-relaxed">
-                    <strong>Catatan Kejujuran Pengujian:</strong> Tombol di bawah menguji mesin
-                    verifikasi & rekonsiliasi server (termasuk notifikasi & suara kasir lintas
-                    perangkat). Simulasi otomatis ini <strong>bukan</strong> pembayaran native
-                    end-to-end dari aplikasi Nimiq Pay.
-                  </p>
-                  <div className="grid grid-cols-2 gap-1.5">
-                    <button
-                      type="button"
-                      data-testid="sim-pending-btn"
-                      onClick={() => {
-                        const demoHash = `0xsim_pending_${order.network}_${order.id.slice(-5)}`;
-                        setTxHashInput(demoHash);
-                        submitVerification(demoHash, {
-                          executionStatus: 'pending',
-                          network: order.network,
-                        });
-                      }}
-                      className="px-2.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-sky-300 font-medium text-left cursor-pointer"
-                    >
-                      1. Simulasi Tx Pending ({order.network})
-                    </button>
-
-                    <button
-                      type="button"
-                      data-testid="sim-confirmed-btn"
-                      onClick={() => {
-                        const demoHash = `0xsim_confirmed_${order.network}_${order.id.slice(-5)}`;
-                        setTxHashInput(demoHash);
-                        submitVerification(demoHash, {
-                          executionStatus: 'confirmed',
-                          network: order.network,
-                        });
-                      }}
-                      className="px-2.5 py-1.5 rounded-lg bg-emerald-950/80 border border-emerald-700/60 hover:bg-emerald-900/70 text-emerald-300 font-medium text-left cursor-pointer"
-                    >
-                      2. Simulasi Tx Confirmed ({order.network})
-                    </button>
-
-                    <button
-                      type="button"
-                      data-testid="sim-underpay-btn"
-                      onClick={() => {
-                        const demoHash = `0xsim_underpay_${order.network}_${order.id.slice(-5)}`;
-                        setTxHashInput(demoHash);
-                        submitVerification(demoHash, {
-                          executionStatus: 'confirmed',
-                          network: order.network,
-                          amountBase: (BigInt(order.amountBase) / 2n).toString(),
-                        });
-                      }}
-                      className="px-2.5 py-1.5 rounded-lg bg-amber-950/70 border border-amber-700/50 text-amber-300 font-medium text-left cursor-pointer"
-                    >
-                      3. Simulasi Kurang Bayar (Underpaid)
-                    </button>
-
-                    <button
-                      type="button"
-                      data-testid="sim-wrong-network-btn"
-                      onClick={() => {
-                        const mismatchedNet: NetworkId =
-                          order.network === 'nimiq-testnet'
-                            ? 'nimiq-mainnet'
-                            : order.network === 'polygon-amoy'
-                            ? 'polygon-mainnet'
-                            : order.network === 'nimiq-mainnet'
-                            ? 'nimiq-testnet'
-                            : 'polygon-amoy';
-                        const demoHash = `0xsim_wrongnet_${mismatchedNet}_${order.id.slice(-5)}`;
-                        setTxHashInput(demoHash);
-                        submitVerification(demoHash, {
-                          executionStatus: 'confirmed',
-                          network: mismatchedNet,
-                        });
-                      }}
-                      className="px-2.5 py-1.5 rounded-lg bg-rose-950/70 border border-rose-700/60 text-rose-200 font-medium text-left cursor-pointer"
-                    >
-                      4. Uji Tolak Salah Jaringan (Mismatch)
-                    </button>
-                  </div>
-                </div>
-              )}
-            </div>
           </div>
 
-          {/* Honest Disclaimers matching checkout_16947649.png */}
+          {/* Honest Disclaimers */}
           <div className="text-center text-[11px] text-slate-400 space-y-0.5 leading-relaxed">
             <p>{t.directNoEscrowNotice}</p>
             <p>{t.noConversionNotice}</p>

@@ -6,3 +6,24 @@ coverage/
 *.log
 .env*
 !.env.example
+
+.data/
+.nimtera-store-db.json
+.aistudio/
+
+test-results/
+playwright-report/
+
+.vercel/
+
+# AI Studio exports and obsolete reference screenshots are not application assets.
+/public/assets/aistudio/
+/src/assets/images/
+/metadata.json
+/bun.lock
+/bun.lockb
+/screenshots/
+*.tsbuildinfo
+
+# Agent/tool runtime files are never project source.
+.arena/

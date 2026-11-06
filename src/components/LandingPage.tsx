@@ -1,0 +1,23 @@
+import { lazy, Suspense, useEffect, useState } from 'react';
+import { BrandLogo } from './BrandLogo';
+const Sculpture = lazy(() => import('./NightMarketSculpture3D'));
+export function LandingPage({ navigate }: { navigate: (path: string) => void }) {
+  const [slug, setSlug] = useState('');
+  const [health, setHealth] = useState<{ ready: boolean; configured: { database: boolean; sessionSecret: boolean }; databaseReachable: boolean } | null>(null);
+  const [error, setError] = useState('');
+  const loadHealth = async () => {
+    setError('');
+    try {
+      const r = await fetch('/api/health'); const result = await r.json();
+      if (typeof result.ready !== 'boolean') throw new Error('Invalid response');
+      setHealth(result);
+    } catch { setError('Could not check the service. Please refresh before creating an account.'); }
+  };
+  useEffect(() => { void loadHealth(); }, []);
+  return <main className="min-h-screen bg-[#0B101C] text-[#F5F0E9]">
+    <div className="border-b border-[#DFC496]/20 bg-[#131C2B] text-[#DFC496] text-xs text-center p-2">TESTNET BETA · No real-money or mainnet payments</div>
+    <header className="max-w-7xl mx-auto p-5 flex flex-wrap gap-4 items-center justify-between"><BrandLogo onClick={() => navigate('/')} /><button onClick={() => navigate('/seller/login')} className="text-sm border border-slate-700 px-5 py-2 rounded-lg">Seller login</button></header>
+    <section className="max-w-7xl mx-auto px-6 py-10 md:py-20 grid md:grid-cols-2 gap-10 items-center"><div><p className="uppercase tracking-[.25em] text-xs text-teal-300 mb-6">Your shop. Every payment.</p><h1 className="text-5xl md:text-7xl leading-tight text-[#DFC496]" style={{fontFamily:'Georgia,serif'}}>A beautiful space<br />for your business.</h1><p className="text-slate-400 mt-6 leading-relaxed max-w-lg">Create your shop, set your own prices, and manage orders in one place. Test payments go directly to the seller’s matching testnet wallet. No swaps. No custody.</p><div className="flex flex-wrap gap-4 mt-8"><button onClick={() => navigate('/seller/setup')} className="bg-[#DFC496] text-[#101827] px-6 py-3 rounded-xl">Create your testnet shop</button><button onClick={() => navigate('/seller/login')} className="border border-slate-700 px-6 py-3 rounded-xl">Open seller console</button></div></div><div className="h-72 md:h-96"><Suspense fallback={<p className="text-[#DFC496]">NimTera</p>}><Sculpture /></Suspense></div></section>
+    <section className="max-w-7xl mx-auto px-6 pb-16 grid md:grid-cols-2 gap-6"><form onSubmit={e => {e.preventDefault(); if (/^[a-z0-9-]{3,40}$/.test(slug.trim())) navigate(`/s/${slug.trim()}`);}} className="bg-[#131C2B] border border-slate-800 rounded-2xl p-7"><h2 className="text-2xl text-[#DFC496]" style={{fontFamily:'Georgia,serif'}}>Visiting a shop?</h2><p className="text-sm text-slate-400 mt-3">Use the shop link shared by your seller, or enter its shop slug below. No sample shop or fabricated sales are substituted.</p><label className="block mt-5 text-sm" htmlFor="shop-slug">Shop slug</label><div className="flex gap-2 mt-2"><input id="shop-slug" value={slug} onChange={e => setSlug(e.target.value.toLowerCase())} required pattern="[a-z0-9-]{3,40}" maxLength={40} placeholder="your-shop" className="bg-[#0B101C] border border-slate-700 rounded-lg px-3 py-3 min-w-0 flex-1" /><button className="bg-teal-300 text-slate-950 rounded-lg px-5">Open</button></div></form><section className="bg-[#131C2B] border border-slate-800 rounded-2xl p-7" aria-live="polite"><h2 className="text-2xl text-[#DFC496]" style={{fontFamily:'Georgia,serif'}}>Service status</h2>{health ? <><p className={`text-sm mt-3 ${health.ready ? 'text-teal-300' : 'text-amber-200'}`}>{health.ready ? 'Account services are available.' : 'Operator setup is incomplete. Account services are not ready yet.'}</p><ul className="text-sm text-slate-400 space-y-2 mt-5"><li>Persistent database: {health.databaseReachable ? 'connected' : health.configured.database ? 'unreachable' : 'not configured'}</li><li>Session security: {health.configured.sessionSecret ? 'configured' : 'not configured'}</li></ul><p className="text-xs text-slate-500 mt-4">This checks account-service configuration, not real-device wallet compatibility or successful payments.</p></> : <p className="text-sm text-slate-400 mt-4">{error || 'Checking service configuration…'}</p>}<button className="text-xs text-[#DFC496] underline mt-4" onClick={() => void loadHealth()}>Check again</button></section></section><footer className="text-center text-xs text-slate-500 border-t border-slate-800 p-7">NimTera · Independent project · Testnet only · Never share seed phrases or private keys</footer>
+  </main>;
+}

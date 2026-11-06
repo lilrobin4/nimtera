@@ -179,7 +179,7 @@ export const DocsAndPoliciesModal: React.FC<DocsAndPoliciesModalProps> = ({ open
               </div>
               <ul className="list-disc pl-5 space-y-1 text-xs text-slate-400">
                 <li>Set environment variable <code className="font-mono">APP_URL="https://nimtera.store"</code>.</li>
-                <li>Add <code className="font-mono">nimtera.store</code> to Cloudflare Turnstile allowed hostnames and configure <code className="font-mono">VITE_TURNSTILE_SITE_KEY</code> + <code className="font-mono">TURNSTILE_SECRET_KEY</code>.</li>
+                <li>CAPTCHA is not required for registration or login. Maintain strong passwords, authenticator 2FA, and shared login-attempt limits.</li>
                 <li>Do not modify any DNS, database, or deployment belonging to StakeSafe.</li>
               </ul>
             </div>

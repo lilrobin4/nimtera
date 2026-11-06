@@ -70,7 +70,7 @@ export const NETWORK_CONFIGS: Record<NetworkId, NetworkConfiguration> = {
     chainIdHex: null,
     nimiqNetworkName: 'test-albatross',
     nimiqNetworkIdNumber: 5,
-    defaultRpcUrl: 'https://rpc.nimiq-testnet.com',
+    defaultRpcUrl: 'https://rpc.testnet.nimiqwatch.com',
     explorerBaseUrl: 'https://wallet.nimiq-testnet.com',
     tokenContract: null,
     isRealFunds: false,
@@ -100,7 +100,7 @@ export const NETWORK_CONFIGS: Record<NetworkId, NetworkConfiguration> = {
     chainIdHex: '0x13882',
     nimiqNetworkName: null,
     nimiqNetworkIdNumber: null,
-    defaultRpcUrl: 'https://rpc-amoy.polygon.technology',
+    defaultRpcUrl: '',
     explorerBaseUrl: 'https://amoy.polygonscan.com',
     tokenContract: null, // Must NEVER use Mainnet USDT contract; configured per store/env after explicit approval
     isRealFunds: false,
@@ -288,6 +288,8 @@ export interface OrderSnapshot {
   paymentReviewReason?: string;
   manualPaymentNote?: string;
   txHash?: string;
+  paymentVerificationAttemptedAt?: string;
+  payerAddress?: string;
   verifiedAt?: string;
   fulfillmentStatus: FulfillmentStatus;
   createdAt: string;
@@ -605,7 +607,7 @@ export function buildNimiqPaymentDetails(params: {
   const cleanRecipient = params.recipient.replace(/\s+/g, '');
   const nimDecimal = formatLunaToNim(params.amountLuna);
   const envTag = isTestnet ? 'TESTNET ' : '';
-  const memo = `NimTera ${envTag}${params.orderNumber} (${params.publicToken.slice(-8)})`;
+  const memo = `NimTera ${envTag}${params.orderNumber} ${params.publicToken}`;
   const uri = `nimiq:${cleanRecipient}?amount=${encodeURIComponent(nimDecimal)}&message=${encodeURIComponent(memo)}&network=${encodeURIComponent(network)}`;
   return {
     uri,
@@ -665,7 +667,8 @@ export interface OnChainTxEvidence {
   txHash: string;
   network: NetworkId;
   /** 'pending' if still in mempool / unconfirmed, 'confirmed' if mined/finalized, 'failed' if reverted, 'rpc_timeout' if upstream timed out */
-  executionStatus: 'pending' | 'confirmed' | 'failed' | 'rpc_timeout';
+  executionStatus: 'pending' | 'confirmed' | 'failed' | 'rpc_timeout' | 'unverified';
+  invalidReason?: string;
   recipient: string;
   /** Actual amount transferred in smallest unit (Luna or micro-USDT) */
   amountBase: bigint;
@@ -703,6 +706,9 @@ export function reconcilePaymentVerification(params: {
   const { order, evidence, claimedTxOrderMap } = params;
   const normalizedTxHash = evidence.txHash.trim().toLowerCase();
 
+  // A verified receipt is terminal; public requests cannot erase it.
+  if (order.paymentStatus === 'confirmed') return { paymentStatus: 'confirmed', shouldBindTxHash: false };
+  if (evidence.executionStatus === 'unverified') return { paymentStatus: 'needs_review', reviewReason: evidence.invalidReason || 'Network evidence could not be verified.', shouldBindTxHash: false };
   // 1. Prevent replay / same transaction used across two different orders
   const existingOwnerOrderId = claimedTxOrderMap.get(normalizedTxHash);
   if (existingOwnerOrderId && existingOwnerOrderId !== order.id) {
@@ -716,9 +722,9 @@ export function reconcilePaymentVerification(params: {
   // 2. Do not falsely mark failed on RPC timeout
   if (evidence.executionStatus === 'rpc_timeout') {
     return {
-      paymentStatus: order.paymentStatus === 'confirmed' ? 'confirmed' : 'pending',
+      paymentStatus: 'pending',
       reviewReason: 'Network RPC timed out while checking confirmation. Will retry verification.',
-      shouldBindTxHash: true,
+      shouldBindTxHash: false,
     };
   }
 
@@ -727,7 +733,7 @@ export function reconcilePaymentVerification(params: {
     return {
       paymentStatus: 'failed',
       reviewReason: 'On-chain transaction execution failed or reverted.',
-      shouldBindTxHash: true,
+      shouldBindTxHash: false,
     };
   }
 
@@ -736,7 +742,7 @@ export function reconcilePaymentVerification(params: {
     return {
       paymentStatus: 'needs_review',
       reviewReason: `Network mismatch: order requires ${order.network}, but transaction is on ${evidence.network}. Cross-network fallback is strictly prohibited.`,
-      shouldBindTxHash: true,
+      shouldBindTxHash: false,
     };
   }
 
@@ -775,7 +781,7 @@ export function reconcilePaymentVerification(params: {
       return {
         paymentStatus: 'needs_review',
         reviewReason: `Token contract mismatch on ${order.network}: expected ${expectedContract}.`,
-        shouldBindTxHash: true,
+        shouldBindTxHash: false,
       };
     }
   }
@@ -796,7 +802,7 @@ export function reconcilePaymentVerification(params: {
     return {
       paymentStatus: 'pending',
       reviewReason: 'Transaction submitted and awaiting block confirmation.',
-      shouldBindTxHash: true,
+      shouldBindTxHash: false,
     };
   }
 
@@ -806,14 +812,14 @@ export function reconcilePaymentVerification(params: {
     return {
       paymentStatus: 'needs_review',
       reviewReason: `Underpayment detected: expected ${order.amountBase} base units, received ${evidence.amountBase.toString()}.`,
-      shouldBindTxHash: true,
+      shouldBindTxHash: false,
     };
   }
   if (evidence.amountBase > expectedAmount) {
     return {
       paymentStatus: 'needs_review',
       reviewReason: `Overpayment detected: expected ${order.amountBase} base units, received ${evidence.amountBase.toString()}.`,
-      shouldBindTxHash: true,
+      shouldBindTxHash: false,
     };
   }
 
@@ -824,7 +830,7 @@ export function reconcilePaymentVerification(params: {
     return {
       paymentStatus: 'needs_review',
       reviewReason: 'Payment confirmed on-chain after the order expiration window; merchant review required.',
-      shouldBindTxHash: true,
+      shouldBindTxHash: false,
     };
   }
 
@@ -926,3 +932,7 @@ export function getOrderStatusBadgeClasses(status: OrderBadgeStatus): string {
 }
 
 
+
+export function paymentIntentMessage(o: OrderSnapshot): string {
+  return ['NimTera payment intent', o.publicToken, o.network, o.snapshotTokenContract || 'NIM', o.snapshotRecipient.toLowerCase(), o.amountBase, o.createdAt].join('\n');
+}
